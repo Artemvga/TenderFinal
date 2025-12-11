@@ -1,6 +1,8 @@
 // assets/js/main.js
 
-// ---------- Общие утилиты ----------
+// =====================
+// Общие утилиты
+// =====================
 
 function preloadImages(urls) {
   const promises = urls.map((url) => {
@@ -13,10 +15,12 @@ function preloadImages(urls) {
   return Promise.all(promises);
 }
 
-async function preloadCoreAssets() {
+// onProgress(progress[0..1], text?)
+async function preloadCoreAssets(onProgress) {
   const images = [
     "assets/png/BG.png",
     "assets/png/Button_BG_Color.png",
+    "assets/png/Button_BG_White.png",
     "assets/png/Button_Back.png",
     "assets/png/POI_Dot.png",
     "assets/png/Banner_ScanPicture.png",
@@ -25,10 +29,28 @@ async function preloadCoreAssets() {
 
   const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
 
-  await Promise.all([preloadImages(images), fontsReady]);
+  // Шрифты
+  onProgress && onProgress(0.15, "Загружаем шрифты…");
+  await fontsReady;
+
+  // Картинки
+  onProgress && onProgress(0.55, "Загружаем изображения…");
+  await preloadImages(images);
+
+  // Файл таргетов для MindAR (чтобы сцена быстрее стартовала)
+  onProgress && onProgress(0.8, "Загружаем AR-данные…");
+  try {
+    await fetch("targets.mind", { cache: "force-cache" });
+  } catch (e) {
+    console.warn("Не удалось предварительно загрузить targets.mind", e);
+  }
+
+  onProgress && onProgress(1, "Готово! Запускаем меню…");
 }
 
-// ---------- Инициализация главного меню ----------
+// =====================
+// Главное меню + инструкция (index.html)
+// =====================
 
 function initMenuPage() {
   const preloader = document.querySelector('[data-screen="preloader"]');
@@ -37,13 +59,27 @@ function initMenuPage() {
     '[data-screen="menu-instructions"]'
   );
 
-  if (!menuMain) return; // не та страница
+  // Если это не index.html — выходим
+  if (!menuMain) return;
 
   const openInstructionsBtn = document.querySelector(
     '[data-action="open-instructions"]'
   );
   const startArBtn = document.querySelector('[data-action="start-ar"]');
   const backToMenuBtn = document.querySelector('[data-action="back-to-menu"]');
+
+  const barFill = document.querySelector(".preloader__bar-fill");
+  const labelEl = document.querySelector("[data-preloader-label]");
+
+  function updatePreloader(progress, text) {
+    const clamped = Math.max(0, Math.min(progress, 1));
+    if (barFill) {
+      barFill.style.width = `${clamped * 100}%`;
+    }
+    if (labelEl && text) {
+      labelEl.textContent = text;
+    }
+  }
 
   function showScreen(screenToShow) {
     [menuMain, screenInstructions].forEach((screen) => {
@@ -52,12 +88,11 @@ function initMenuPage() {
     });
   }
 
-  // Покажем меню после предзагрузки ассетов
+  // Показ меню после предзагрузки ассетов
   (async () => {
     try {
-      await preloadCoreAssets();
+      await preloadCoreAssets(updatePreloader);
     } catch (e) {
-      // на всякий случай просто продолжаем
       console.warn("Preload failed", e);
     }
 
@@ -78,24 +113,30 @@ function initMenuPage() {
   });
 }
 
-// ---------- Инициализация AR-сцены ----------
+// =====================
+// AR-сцена (ar-scene.html)
+// =====================
 
 function initArPage() {
   const arRoot = document.querySelector("[data-ar-root]");
-  if (!arRoot) return; // не AR-страница
+  if (!arRoot) return; // это не ar-scene.html
 
   const exitBtn = document.querySelector('[data-action="exit-to-menu"]');
   const scanOverlay = document.querySelector("[data-ar-scan]");
+  const scanTextEl = document.querySelector("[data-scan-text]");
   const introOverlay = document.querySelector("[data-ar-intro]");
   const introCloseBtn = document.querySelector('[data-action="close-intro"]');
-  const poiContainer = document.querySelector("[data-ar-pois]");
   const poiPanel = document.querySelector("[data-ar-poi-panel]");
   const poiCloseBtn = document.querySelector('[data-action="close-poi"]');
 
   const poiTitleEl = document.querySelector("[data-poi-title]");
   const poiTextEl = document.querySelector("[data-poi-text]");
 
-  const poiButtons = Array.from(document.querySelectorAll(".poi"));
+  exitBtn?.addEventListener("click", () => {
+    window.location.href = "index.html";
+  });
+
+  // -------- контент трёх точек интереса --------
 
   const poiContent = {
     1: {
@@ -133,52 +174,165 @@ function initArPage() {
 
   let introShown = false;
 
-  exitBtn?.addEventListener("click", () => {
-    window.location.href = "index.html";
-  });
+  function showPoi(id) {
+    const content = poiContent[id];
+    if (!content) return;
 
-  introCloseBtn?.addEventListener("click", () => {
-    if (introOverlay) introOverlay.hidden = true;
-    if (poiContainer) poiContainer.hidden = false;
-  });
+    if (poiTitleEl) poiTitleEl.textContent = content.title;
+    if (poiTextEl) poiTextEl.textContent = content.text;
+    if (poiPanel) poiPanel.hidden = false;
+  }
 
-  poiCloseBtn?.addEventListener("click", () => {
-    if (poiPanel) poiPanel.hidden = true;
-  });
+  function setupArLogic() {
+    const targetEntity = document.querySelector("#artwork-target");
+    const poiGroup = document.querySelector("#poi-group");
+    const poiEls = Array.from(document.querySelectorAll(".poi-ar"));
 
-  poiButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.poi;
-      const content = poiContent[id];
-
-      if (!content) return;
-
-      if (poiTitleEl) poiTitleEl.textContent = content.title;
-      if (poiTextEl) poiTextEl.textContent = content.text;
-      if (poiPanel) poiPanel.hidden = false;
+    // Клики по AR-точкам (через raycaster / cursor)
+    poiEls.forEach((el) => {
+      const id = el.dataset.poi;
+      if (!id) return;
+      el.addEventListener("click", () => {
+        showPoi(id);
+      });
     });
-  });
 
-  // Связка с MindAR: показываем вводную панель при первом распознавании
-  const targetEntity = document.querySelector("#artwork-target");
+    // Кнопка закрытия вводной: показываем AR-точки
+    introCloseBtn?.addEventListener("click", () => {
+      if (introOverlay) introOverlay.hidden = true;
+      if (poiGroup) poiGroup.setAttribute("visible", "true");
+    });
 
-  if (targetEntity) {
-    targetEntity.addEventListener("targetFound", () => {
-      if (scanOverlay) scanOverlay.style.display = "none";
+    // Закрытие панели точки интереса
+    poiCloseBtn?.addEventListener("click", () => {
+      if (poiPanel) poiPanel.hidden = true;
+    });
 
-      if (!introShown && introOverlay) {
-        introOverlay.hidden = false;
-        introShown = true;
+    if (targetEntity) {
+      // Первое распознавание метки
+      targetEntity.addEventListener("targetFound", () => {
+        if (scanOverlay) scanOverlay.style.display = "none";
+
+        if (!introShown && introOverlay) {
+          introOverlay.hidden = false;
+          introShown = true;
+        }
+      });
+
+      // targetLost не обрабатываем — по ТЗ панель не закрываем
+    }
+  }
+
+  // -------- проверка и запрос доступа к камере --------
+
+  async function requestCameraAccess() {
+    if (!scanTextEl) return;
+
+    // Нет API — совсем старый/нестандартный браузер
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      scanTextEl.textContent =
+        "Камера не поддерживается в этом браузере. Откройте сцену в Chrome, Safari или Яндекс.Браузере.";
+      return;
+    }
+
+    // Проверяем, есть ли вообще видеоустройства
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const hasVideoInput = devices.some(
+        (d) => d && d.kind === "videoinput"
+      );
+
+      if (!hasVideoInput) {
+        scanTextEl.textContent =
+          "Камера не найдена. Подключите камеру и обновите страницу.";
+        return;
       }
-    });
+    } catch (e) {
+      console.warn("enumerateDevices error", e);
+      // если не смогли проверить — просто продолжаем
+    }
 
-    // ВНИМАНИЕ: по заданию при пропаже метки панель не закрываем,
-    // поэтому на targetLost ничего не делаем.
-    // targetEntity.addEventListener("targetLost", () => {});
+    // Проверяем статус разрешения, если браузер поддерживает Permissions API
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const status = await navigator.permissions.query({ name: "camera" });
+
+        if (status.state === "denied") {
+          scanTextEl.textContent =
+            "Доступ к камере запрещён. Разрешите доступ в настройках браузера и перезапустите сцену.";
+          return;
+        }
+
+        // при 'prompt' / 'granted' продолжаем, но слушаем изменения
+        status.onchange = () => {
+          if (status.state === "denied") {
+            scanTextEl.textContent =
+              "Доступ к камере запрещён. Разрешите доступ в настройках браузера.";
+          }
+        };
+      } catch (e) {
+        console.warn("permissions.query(camera) error", e);
+      }
+    }
+
+    // Запрашиваем доступ к камере (одноразово), MindAR потом создаст свой поток
+    try {
+      scanTextEl.textContent = "Запрашиваем доступ к камере…";
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+
+      // Нам только подтверждение — останавливаем тестовый поток
+      stream.getTracks().forEach((t) => t.stop());
+
+      scanTextEl.textContent =
+        "Наведите камеру на картину, чтобы начать.";
+    } catch (e) {
+      console.error("Camera permission error", e);
+
+      let message =
+        "Не удалось получить доступ к камере. Попробуйте перезагрузить страницу или сменить браузер.";
+
+      if (e && e.name) {
+        switch (e.name) {
+          case "NotAllowedError":
+          case "SecurityError":
+            message =
+              "Вы отклонили запрос к камере. Разрешите доступ в настройках браузера и обновите страницу.";
+            break;
+          case "NotFoundError":
+          case "OverconstrainedError":
+            message =
+              "Камера не найдена или занята другим приложением. Закройте другие приложения с камерой и обновите страницу.";
+            break;
+          case "AbortError":
+            message =
+              "Запрос к камере был прерван. Попробуйте ещё раз перезагрузить страницу.";
+            break;
+        }
+      }
+
+      scanTextEl.textContent = message;
+    }
+  }
+
+  requestCameraAccess();
+
+  // Ждём, пока загрузится a-scene, чтобы все a-entity уже были в DOM
+  const sceneEl = document.querySelector("a-scene");
+  if (sceneEl) {
+    if (sceneEl.hasLoaded) {
+      setupArLogic();
+    } else {
+      sceneEl.addEventListener("loaded", setupArLogic);
+    }
   }
 }
 
-// ---------- Точка входа ----------
+// =====================
+// Точка входа
+// =====================
 
 document.addEventListener("DOMContentLoaded", () => {
   initMenuPage();

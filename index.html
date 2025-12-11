@@ -24,11 +24,23 @@
     <div class="page-bg__overlay"></div>
   </div>
 
-  <!-- Прелоадер перед загрузкой ассетов -->
+  <!-- ЭКРАН ЗАГРУЗКИ (перед меню) -->
   <div class="preloader" data-screen="preloader">
     <div class="preloader__content">
-      <img src="assets/png/Banner_ScanPicture.png" alt="Загрузка" class="preloader__image" />
-      <p class="preloader__label">Загружаем AR-квест…</p>
+      <div class="preloader__logo">
+        <span class="preloader__tagline">AR-квест</span>
+        <span class="preloader__title">«Образы Москвы»</span>
+      </div>
+
+      <div class="preloader__spinner"></div>
+
+      <div class="preloader__bar">
+        <div class="preloader__bar-fill"></div>
+      </div>
+
+      <p class="preloader__label" data-preloader-label>
+        Подготавливаем ресурсы…
+      </p>
     </div>
   </div>
 
@@ -44,6 +56,7 @@
       </p>
 
       <div class="menu-actions">
+        <!-- белая кнопка, чёрный текст -->
         <button class="btn btn--light" data-action="open-instructions">
           Смотреть инструкцию
         </button>
@@ -54,7 +67,7 @@
     </section>
   </main>
 
-  <!-- Экран инструкции -->
+  <!-- Экран инструкции (скрыт по умолчанию, показывается только по кнопке) -->
   <main class="screen screen--instructions" data-screen="menu-instructions" hidden>
     <section class="screen-card">
       <header class="screen-header">

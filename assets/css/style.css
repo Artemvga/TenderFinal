@@ -103,7 +103,7 @@ img {
   background: var(--color-bg-overlay);
 }
 
-/* ---------- Прелоадер ---------- */
+/* ---------- ЭКРАН ЗАГРУЗКИ ---------- */
 
 .preloader {
   position: fixed;
@@ -119,17 +119,77 @@ img {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
+  padding: 24px;
+  text-align: center;
 }
 
+.preloader__logo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preloader__tagline {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  opacity: 0.85;
+}
+
+.preloader__title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* спиннер-кружок */
+.preloader__spinner {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #ffffff;
+  animation: preloaderSpin 0.8s linear infinite;
+}
+
+/* прогресс-бар с подписью */
+.preloader__bar {
+  position: relative;
+  width: min(260px, 70vw);
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.preloader__bar-fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #ff5f27 0%, #f130a0 100%);
+  transition: width 0.25s ease-out;
+}
+
+/* старая картинка прелоадера можно оставить, но она не используется
 .preloader__image {
   width: min(280px, 70vw);
 }
+*/
 
 .preloader__label {
   font-weight: 500;
-  font-size: 16px;
+  font-size: 15px;
   opacity: 0.9;
+}
+
+@keyframes preloaderSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* ---------- Главное меню ---------- */
@@ -214,6 +274,16 @@ img {
   box-shadow: var(--shadow-soft);
 }
 
+/* Белая кнопка для инструкции */
+.btn--light {
+  background-image: url("../png/Button_BG_White.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: var(--shadow-soft);
+  color: #000000;
+}
+
 .btn:active {
   transform: translateY(1px);
   opacity: 0.9;
@@ -228,6 +298,11 @@ img {
   align-items: stretch;
   justify-content: center;
   padding: 20px 16px;
+}
+
+/* чтобы hidden реально скрывал экран с инструкциями */
+.screen[hidden] {
+  display: none;
 }
 
 .screen-card {
@@ -339,20 +414,22 @@ img {
   pointer-events: none;
 }
 
+/* большая квадратная кнопка выхода без текста */
 .btn-back {
   pointer-events: auto;
   border: none;
-  border-radius: var(--radius-pill);
-  padding: 10px 18px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-white);
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
   background-image: url("../png/Button_Back.png");
-  background-size: cover;
+  background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
   box-shadow: var(--shadow-soft);
   cursor: pointer;
+  padding: 0;
+  color: transparent;
+  font-size: 0;
 }
 
 /* Оверлеи поверх AR */
@@ -368,7 +445,7 @@ img {
 }
 
 .ar-overlay--scan {
-  background: var(--color-bg-overlay);
+  background: none;
 }
 
 .ar-overlay__inner {
@@ -428,7 +505,7 @@ img {
   margin-top: 4px;
 }
 
-/* Точки интереса */
+/* Точки интереса (UI-версия сейчас не используется, но можно оставить) */
 
 .ar-pois {
   pointer-events: none;

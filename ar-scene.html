@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ру">
 <head>
   <meta charset="UTF-8" />
   <title>AR-квест «Образы Москвы» — сцена</title>
@@ -7,7 +7,7 @@
 
   <link rel="stylesheet" href="assets/css/style.css" />
 
-  <!-- A-Frame и MindAR (можешь поменять версию при необходимости) -->
+  <!-- A-Frame и MindAR -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image-aframe.prod.js"></script>
 
@@ -25,9 +25,16 @@
   >
     <a-assets>
       <img id="painting-preview" src="assets/png/Paint.png" />
+      <img id="poi-dot" src="assets/png/POI_Dot.png" />
     </a-assets>
 
-    <a-camera position="0 0 0" look-controls="enabled: true"></a-camera>
+    <!-- Камера (как в рабочей версии, только добавлен cursor/raycaster для клика по POI) -->
+    <a-camera
+      position="0 0 0"
+      look-controls="enabled: true"
+      cursor="fuse: false; rayOrigin: mouse"
+      raycaster="objects: .poi-ar"
+    ></a-camera>
 
     <!-- Невидимый/полупрозрачный plane, привязанный к маркеру -->
     <a-entity id="artwork-target" mindar-image-target="targetIndex: 0">
@@ -38,16 +45,56 @@
         width="1.5"
         material="opacity: 0; transparent: true"
       ></a-plane>
+
+      <!-- Группа точек интереса в AR-пространстве.
+           Они существуют с самого начала, но скрыты (visible="false").
+           После закрытия вводной панели они станут видимыми. -->
+      <a-entity id="poi-group" visible="false">
+        <!-- слева -->
+        <a-image
+          id="poi-1"
+          class="poi-ar"
+          data-poi="1"
+          src="#poi-dot"
+          position="-0.6 -0.2 0"
+          width="0.25"
+          height="0.25"
+        ></a-image>
+
+        <!-- по центру -->
+        <a-image
+          id="poi-2"
+          class="poi-ar"
+          data-poi="2"
+          src="#poi-dot"
+          position="0 0 0"
+          width="0.25"
+          height="0.25"
+        ></a-image>
+
+        <!-- справа -->
+        <a-image
+          id="poi-3"
+          class="poi-ar"
+          data-poi="3"
+          src="#poi-dot"
+          position="0.6 -0.2 0"
+          width="0.25"
+          height="0.25"
+        ></a-image>
+      </a-entity>
     </a-entity>
   </a-scene>
 
   <!-- UI-слой -->
   <div class="ar-ui" data-ar-root>
-    <!-- Кнопка выхода слева сверху -->
+    <!-- Кнопка выхода слева сверху: теперь квадрат без текста -->
     <div class="ar-topbar safe-area-top">
-      <button class="btn-back" data-action="exit-to-menu">
-        Выйти
-      </button>
+      <button
+        class="btn-back"
+        data-action="exit-to-menu"
+        aria-label="Выйти в меню"
+      ></button>
     </div>
 
     <!-- Экран «Сканируем» при заходе в сцену -->
@@ -58,7 +105,7 @@
           alt="Сканирование"
           class="ar-overlay__image"
         />
-        <p class="ar-overlay__text">
+        <p class="ar-overlay__text" data-scan-text>
           Наведите камеру на картину, чтобы начать.
         </p>
       </div>
@@ -96,13 +143,6 @@
           Закрыть
         </button>
       </div>
-    </div>
-
-    <!-- Три точки интереса, появляются после закрытия вводной панели -->
-    <div class="ar-pois safe-area-bottom" data-ar-pois hidden>
-      <button class="poi" data-poi="1" aria-label="Точка интереса 1"></button>
-      <button class="poi" data-poi="2" aria-label="Точка интереса 2"></button>
-      <button class="poi" data-poi="3" aria-label="Точка интереса 3"></button>
     </div>
   </div>
 </body>
