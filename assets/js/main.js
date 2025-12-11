@@ -1,7 +1,7 @@
 // assets/js/main.js
 
 // =====================
-// Общие утилиты
+// Утилиты предзагрузки
 // =====================
 
 function preloadImages(urls) {
@@ -15,7 +15,7 @@ function preloadImages(urls) {
   return Promise.all(promises);
 }
 
-// onProgress(progress[0..1], text?)
+// onProgress(progress [0..1], text?)
 async function preloadCoreAssets(onProgress) {
   const images = [
     "assets/png/BG.png",
@@ -29,16 +29,13 @@ async function preloadCoreAssets(onProgress) {
 
   const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
 
-  // Шрифты
   onProgress && onProgress(0.15, "Загружаем шрифты…");
   await fontsReady;
 
-  // Картинки
   onProgress && onProgress(0.55, "Загружаем изображения…");
   await preloadImages(images);
 
-  // Файл таргетов для MindAR (чтобы сцена быстрее стартовала)
-  onProgress && onProgress(0.8, "Загружаем AR-данные…");
+  onProgress && onProgress(0.85, "Проверяем AR-данные…");
   try {
     await fetch("targets.mind", { cache: "force-cache" });
   } catch (e) {
@@ -59,8 +56,7 @@ function initMenuPage() {
     '[data-screen="menu-instructions"]'
   );
 
-  // Если это не index.html — выходим
-  if (!menuMain) return;
+  if (!menuMain) return; // не index.html
 
   const openInstructionsBtn = document.querySelector(
     '[data-action="open-instructions"]'
@@ -119,7 +115,7 @@ function initMenuPage() {
 
 function initArPage() {
   const arRoot = document.querySelector("[data-ar-root]");
-  if (!arRoot) return; // это не ar-scene.html
+  if (!arRoot) return; // не ar-scene.html
 
   const exitBtn = document.querySelector('[data-action="exit-to-menu"]');
   const scanOverlay = document.querySelector("[data-ar-scan]");
@@ -128,7 +124,6 @@ function initArPage() {
   const introCloseBtn = document.querySelector('[data-action="close-intro"]');
   const poiPanel = document.querySelector("[data-ar-poi-panel]");
   const poiCloseBtn = document.querySelector('[data-action="close-poi"]');
-
   const poiTitleEl = document.querySelector("[data-poi-title]");
   const poiTextEl = document.querySelector("[data-poi-text]");
 
@@ -177,7 +172,6 @@ function initArPage() {
   function showPoi(id) {
     const content = poiContent[id];
     if (!content) return;
-
     if (poiTitleEl) poiTitleEl.textContent = content.title;
     if (poiTextEl) poiTextEl.textContent = content.text;
     if (poiPanel) poiPanel.hidden = false;
@@ -188,17 +182,15 @@ function initArPage() {
     const poiGroup = document.querySelector("#poi-group");
     const poiEls = Array.from(document.querySelectorAll(".poi-ar"));
 
-    // --- обработка кликов по POI ---
+    // Клики по AR-точкам
     poiEls.forEach((el) => {
       const id = el.dataset.poi;
       if (!id) return;
 
-      // click от A-Frame cursor (rayOrigin: mouse)
       el.addEventListener("click", () => {
         showPoi(id);
       });
 
-      // Немного визуального фидбэка по наведению (если raycaster его даёт)
       el.addEventListener("mouseenter", () => {
         el.setAttribute("scale", "1.1 1.1 1.1");
       });
@@ -207,19 +199,18 @@ function initArPage() {
       });
     });
 
-    // --- закрытие вводной панели: включаем POI ---
+    // Закрытие вводной панели — включаем POI
     introCloseBtn?.addEventListener("click", () => {
       if (introOverlay) introOverlay.hidden = true;
       if (poiGroup) poiGroup.setAttribute("visible", "true");
     });
 
-    // --- закрытие панели с текстом POI ---
+    // Закрытие панели точки интереса
     poiCloseBtn?.addEventListener("click", () => {
       if (poiPanel) poiPanel.hidden = true;
     });
 
     if (targetEntity) {
-      // Первое распознавание маркера
       targetEntity.addEventListener("targetFound", () => {
         if (scanOverlay) scanOverlay.style.display = "none";
 
@@ -229,24 +220,21 @@ function initArPage() {
         }
       });
 
-      // targetLost не трогаем — панель по ТЗ не закрываем
+      // targetLost — панель по ТЗ не закрываем
     }
   }
 
+  // -------- лёгкая проверка камеры (без getUserMedia, не ломаем MindAR) --------
 
-  // -------- проверка и запрос доступа к камере --------
-
-  async function requestCameraAccess() {
+  async function checkCameraSupport() {
     if (!scanTextEl) return;
 
-    // Нет API — совсем старый/нестандартный браузер
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
       scanTextEl.textContent =
         "Камера не поддерживается в этом браузере. Откройте сцену в Chrome, Safari или Яндекс.Браузере.";
       return;
     }
 
-    // Проверяем, есть ли вообще видеоустройства
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const hasVideoInput = devices.some(
@@ -260,10 +248,9 @@ function initArPage() {
       }
     } catch (e) {
       console.warn("enumerateDevices error", e);
-      // если не смогли проверить — просто продолжаем
     }
 
-    // Проверяем статус разрешения, если браузер поддерживает Permissions API
+    // Если Permissions API поддерживается — проверим, не запрещена ли камера
     if (navigator.permissions && navigator.permissions.query) {
       try {
         const status = await navigator.permissions.query({ name: "camera" });
@@ -274,7 +261,6 @@ function initArPage() {
           return;
         }
 
-        // при 'prompt' / 'granted' продолжаем, но слушаем изменения
         status.onchange = () => {
           if (status.state === "denied") {
             scanTextEl.textContent =
@@ -286,49 +272,11 @@ function initArPage() {
       }
     }
 
-    // Запрашиваем доступ к камере (одноразово), MindAR потом создаст свой поток
-    try {
-      scanTextEl.textContent = "Запрашиваем доступ к камере…";
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-
-      // Нам только подтверждение — останавливаем тестовый поток
-      stream.getTracks().forEach((t) => t.stop());
-
-      scanTextEl.textContent =
-        "Наведите камеру на картину, чтобы начать.";
-    } catch (e) {
-      console.error("Camera permission error", e);
-
-      let message =
-        "Не удалось получить доступ к камере. Попробуйте перезагрузить страницу или сменить браузер.";
-
-      if (e && e.name) {
-        switch (e.name) {
-          case "NotAllowedError":
-          case "SecurityError":
-            message =
-              "Вы отклонили запрос к камере. Разрешите доступ в настройках браузера и обновите страницу.";
-            break;
-          case "NotFoundError":
-          case "OverconstrainedError":
-            message =
-              "Камера не найдена или занята другим приложением. Закройте другие приложения с камерой и обновите страницу.";
-            break;
-          case "AbortError":
-            message =
-              "Запрос к камере был прерван. Попробуйте ещё раз перезагрузить страницу.";
-            break;
-        }
-      }
-
-      scanTextEl.textContent = message;
-    }
+    // Всё ок — MindAR сам покажет нативный запрос доступа
+    scanTextEl.textContent = "Наведите камеру на картину, чтобы начать.";
   }
 
-  requestCameraAccess();
+  checkCameraSupport();
 
   // Ждём, пока загрузится a-scene, чтобы все a-entity уже были в DOM
   const sceneEl = document.querySelector("a-scene");

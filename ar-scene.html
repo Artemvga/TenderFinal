@@ -14,7 +14,7 @@
   <script src="assets/js/main.js" defer></script>
 </head>
 <body class="page page--ar">
-  <!-- ВАЖНО: без HTML-фона, только сцена и UI -->
+  <!-- Никакого фонового BG, только сцена и UI -->
 
   <a-scene
     mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: false; uiError: false; uiScanning: false;"
@@ -22,15 +22,14 @@
     renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: true"
-    class="ar-scene"
   >
     <a-assets>
       <img id="painting-preview" src="assets/png/Paint.png" />
       <img id="poi-dot" src="assets/png/POI_Dot.png" />
     </a-assets>
 
-    <!-- Камера с отдельным курсором/рейкастером под клики по POI -->
-    <a-entity camera position="0 0 0" look-controls="enabled: true">
+    <!-- Камера + курсор/рейкастер для кликов по POI (мышь/тач) -->
+    <a-entity camera look-controls="enabled: true">
       <a-entity
         cursor="fuse: false; rayOrigin: mouse"
         raycaster="objects: .poi-ar; far: 20; interval: 0.1"
@@ -39,7 +38,7 @@
 
     <!-- Маркер MindAR -->
     <a-entity id="artwork-target" mindar-image-target="targetIndex: 0">
-      <!-- Невидимая плоскость картины (сама метка) -->
+      <!-- Плоскость картины, невидимая, нужна как опорная -->
       <a-plane
         src="#painting-preview"
         position="0 0 0"
@@ -48,11 +47,10 @@
         material="opacity: 0; transparent: true"
       ></a-plane>
 
-      <!-- Точки интереса в AR-пространстве.
-           Они есть с начала, но невидимы (visible=false).
-           После закрытия вводной панели становятся видимыми. -->
+      <!-- Точки интереса: дочерние маркера, сначала скрыты -->
       <a-entity id="poi-group" visible="false">
-        <!-- в 3 раза меньше (0.08) и чуть "над" картиной по Z (0.02) -->
+        <!-- В 3 раза меньше (0.08) и чуть над картиной по Z (0.02).
+             depthTest: false убирает мерцание. -->
 
         <!-- слева -->
         <a-image
@@ -93,7 +91,7 @@
     </a-entity>
   </a-scene>
 
-  <!-- UI-слой -->
+  <!-- UI-слой над AR -->
   <div class="ar-ui" data-ar-root>
     <!-- Большая квадратная кнопка выхода -->
     <div class="ar-topbar safe-area-top">
@@ -140,7 +138,7 @@
       </div>
     </div>
 
-    <!-- Панель точки интереса (контент меняется из JS) -->
+    <!-- Панель точки интереса (текст меняется из JS) -->
     <div class="ar-overlay ar-overlay--panel" data-ar-poi-panel hidden>
       <div class="panel">
         <h2 class="panel__title" data-poi-title></h2>

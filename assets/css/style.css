@@ -1,5 +1,3 @@
-/* assets/css/style.css */
-
 /* ---------- Шрифты ---------- */
 
 @font-face {
@@ -43,7 +41,6 @@
 :root {
   --color-bg-overlay: rgba(0, 0, 0, 0.6);
   --color-white: #ffffff;
-  --gradient-main: linear-gradient(135deg, #ff5f27 0%, #f130a0 100%);
   --radius-lg: 24px;
   --radius-pill: 999px;
   --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.35);
@@ -76,13 +73,14 @@ img {
   display: block;
 }
 
-/* ---------- Фон ---------- */
+/* ---------- Общий wrapper ---------- */
 
 .page {
   position: relative;
   min-height: 100vh;
-  overflow: hidden;
 }
+
+/* ---------- Фон главного экрана ---------- */
 
 .page-bg {
   position: fixed;
@@ -142,7 +140,7 @@ img {
   font-weight: 700;
 }
 
-/* спиннер-кружок */
+/* крутящийся кружок */
 .preloader__spinner {
   width: 64px;
   height: 64px;
@@ -152,7 +150,7 @@ img {
   animation: preloaderSpin 0.8s linear infinite;
 }
 
-/* прогресс-бар с подписью */
+/* прогресс-бар */
 .preloader__bar {
   position: relative;
   width: min(260px, 70vw);
@@ -170,12 +168,6 @@ img {
   background: linear-gradient(135deg, #ff5f27 0%, #f130a0 100%);
   transition: width 0.25s ease-out;
 }
-
-/* старая картинка прелоадера можно оставить, но она не используется
-.preloader__image {
-  width: min(280px, 70vw);
-}
-*/
 
 .preloader__label {
   font-weight: 500;
@@ -300,7 +292,7 @@ img {
   padding: 20px 16px;
 }
 
-/* чтобы hidden реально скрывал экран с инструкциями */
+/* чтобы hidden реально скрывал */
 .screen[hidden] {
   display: none;
 }
@@ -374,7 +366,7 @@ img {
   margin-top: auto;
 }
 
-/* ---------- Безопасные отступы для телефонов с вырезом ---------- */
+/* ---------- Safe-area для телефонов ---------- */
 
 .safe-area-top {
   padding-top: calc(12px + env(safe-area-inset-top, 0px));
@@ -384,19 +376,8 @@ img {
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
-/* ---------- AR-страница ---------- */
 
-.page--ar {
-  background: #000000;
-}
-
-/* A-Frame-полотно */
-.ar-scene {
-  width: 100vw;
-  height: 100vh;
-  display: block;
-}
-/* UI над AR */
+/* UI-слой над AR */
 .ar-ui {
   position: fixed;
   inset: 0;
@@ -414,7 +395,7 @@ img {
   pointer-events: none;
 }
 
-/* большая квадратная кнопка выхода без текста */
+/* квадратная большая кнопка выхода (PNG Button_Back) */
 .btn-back {
   pointer-events: auto;
   border: none;
@@ -444,6 +425,7 @@ img {
   padding: 20px 16px;
 }
 
+/* Никакого затемнения — только контент, чтобы камера была видна */
 .ar-overlay--scan {
   background: none;
 }
@@ -464,8 +446,9 @@ img {
   opacity: 0.9;
 }
 
+/* затемнение только для панелей */
 .ar-overlay--panel {
-  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.75));
+  background: radial-gradient(circle at top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.9));
 }
 
 .ar-overlay[hidden] {
@@ -476,7 +459,7 @@ img {
 
 .panel {
   pointer-events: auto;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   border-radius: var(--radius-lg);
   padding: 20px 18px 16px;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -505,38 +488,7 @@ img {
   margin-top: 4px;
 }
 
-/* Точки интереса (UI-версия сейчас не используется, но можно оставить) */
-
-.ar-pois {
-  pointer-events: none;
-  display: flex;
-  justify-content: center;
-  gap: 32px;
-  padding: 0 16px 20px;
-}
-
-.ar-pois[hidden] {
-  display: none;
-}
-
-.poi {
-  pointer-events: auto;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: none;
-  background-image: url("../png/POI_Dot.png");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  cursor: pointer;
-}
-
-.poi:active {
-  transform: scale(0.96);
-}
-
-/* ---------- Адаптивность ---------- */
+/* ---------- Адаптив ---------- */
 
 @media (min-width: 768px) {
   .menu-card {
@@ -551,3 +503,33 @@ img {
     padding: 24px 24px 18px;
   }
 }
+
+/* ---------- FULLSCREEN КАМЕРА НА AR-СТРАНИЦЕ ---------- */
+
+/* Страница AR без скролла */
+.page--ar {
+  background: #000;
+  overflow: hidden;
+}
+
+/* Растягиваем A-Frame сцену на весь экран */
+.page--ar a-scene {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Видео с камеры и WebGL-канвас на весь экран поверх фона */
+.page--ar video,
+.page--ar canvas.a-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  object-fit: cover;   /* максимально заполняет экран, может чуть обрезать края */
+  z-index: -1;         /* чтобы UI был поверх */
+}
+
