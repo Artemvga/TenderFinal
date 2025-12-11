@@ -188,28 +188,38 @@ function initArPage() {
     const poiGroup = document.querySelector("#poi-group");
     const poiEls = Array.from(document.querySelectorAll(".poi-ar"));
 
-    // Клики по AR-точкам (через raycaster / cursor)
+    // --- обработка кликов по POI ---
     poiEls.forEach((el) => {
       const id = el.dataset.poi;
       if (!id) return;
+
+      // click от A-Frame cursor (rayOrigin: mouse)
       el.addEventListener("click", () => {
         showPoi(id);
       });
+
+      // Немного визуального фидбэка по наведению (если raycaster его даёт)
+      el.addEventListener("mouseenter", () => {
+        el.setAttribute("scale", "1.1 1.1 1.1");
+      });
+      el.addEventListener("mouseleave", () => {
+        el.setAttribute("scale", "1 1 1");
+      });
     });
 
-    // Кнопка закрытия вводной: показываем AR-точки
+    // --- закрытие вводной панели: включаем POI ---
     introCloseBtn?.addEventListener("click", () => {
       if (introOverlay) introOverlay.hidden = true;
       if (poiGroup) poiGroup.setAttribute("visible", "true");
     });
 
-    // Закрытие панели точки интереса
+    // --- закрытие панели с текстом POI ---
     poiCloseBtn?.addEventListener("click", () => {
       if (poiPanel) poiPanel.hidden = true;
     });
 
     if (targetEntity) {
-      // Первое распознавание метки
+      // Первое распознавание маркера
       targetEntity.addEventListener("targetFound", () => {
         if (scanOverlay) scanOverlay.style.display = "none";
 
@@ -219,9 +229,10 @@ function initArPage() {
         }
       });
 
-      // targetLost не обрабатываем — по ТЗ панель не закрываем
+      // targetLost не трогаем — панель по ТЗ не закрываем
     }
   }
+
 
   // -------- проверка и запрос доступа к камере --------
 

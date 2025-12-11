@@ -392,10 +392,10 @@ img {
 
 /* A-Frame-полотно */
 .ar-scene {
-  position: fixed;
-  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
 }
-
 /* UI над AR */
 .ar-ui {
   position: fixed;

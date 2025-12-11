@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ру">
+<html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <title>AR-квест «Образы Москвы» — сцена</title>
@@ -14,13 +14,14 @@
   <script src="assets/js/main.js" defer></script>
 </head>
 <body class="page page--ar">
-  <!-- AR-сцена -->
+  <!-- ВАЖНО: без HTML-фона, только сцена и UI -->
+
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: false; uiError: false; uiScanning: false;"
+    color-space="sRGB"
+    renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: true"
-    renderer="colorManagement: true, physicallyCorrectLights: true"
-    embedded
     class="ar-scene"
   >
     <a-assets>
@@ -28,48 +29,53 @@
       <img id="poi-dot" src="assets/png/POI_Dot.png" />
     </a-assets>
 
-    <!-- Камера (как в рабочей версии, только добавлен cursor/raycaster для клика по POI) -->
-    <a-camera
-      position="0 0 0"
-      look-controls="enabled: true"
-      cursor="fuse: false; rayOrigin: mouse"
-      raycaster="objects: .poi-ar"
-    ></a-camera>
+    <!-- Камера с отдельным курсором/рейкастером под клики по POI -->
+    <a-entity camera position="0 0 0" look-controls="enabled: true">
+      <a-entity
+        cursor="fuse: false; rayOrigin: mouse"
+        raycaster="objects: .poi-ar; far: 20; interval: 0.1"
+      ></a-entity>
+    </a-entity>
 
-    <!-- Невидимый/полупрозрачный plane, привязанный к маркеру -->
+    <!-- Маркер MindAR -->
     <a-entity id="artwork-target" mindar-image-target="targetIndex: 0">
+      <!-- Невидимая плоскость картины (сама метка) -->
       <a-plane
         src="#painting-preview"
         position="0 0 0"
-        height="1"
         width="1.5"
+        height="1"
         material="opacity: 0; transparent: true"
       ></a-plane>
 
-      <!-- Группа точек интереса в AR-пространстве.
-           Они существуют с самого начала, но скрыты (visible="false").
-           После закрытия вводной панели они станут видимыми. -->
+      <!-- Точки интереса в AR-пространстве.
+           Они есть с начала, но невидимы (visible=false).
+           После закрытия вводной панели становятся видимыми. -->
       <a-entity id="poi-group" visible="false">
+        <!-- в 3 раза меньше (0.08) и чуть "над" картиной по Z (0.02) -->
+
         <!-- слева -->
         <a-image
           id="poi-1"
           class="poi-ar"
           data-poi="1"
           src="#poi-dot"
-          position="-0.6 -0.2 0"
-          width="0.25"
-          height="0.25"
+          position="-0.6 -0.2 0.02"
+          width="0.08"
+          height="0.08"
+          material="transparent: true; alphaTest: 0.5; depthTest: false;"
         ></a-image>
 
-        <!-- по центру -->
+        <!-- центр -->
         <a-image
           id="poi-2"
           class="poi-ar"
           data-poi="2"
           src="#poi-dot"
-          position="0 0 0"
-          width="0.25"
-          height="0.25"
+          position="0 0 0.02"
+          width="0.08"
+          height="0.08"
+          material="transparent: true; alphaTest: 0.5; depthTest: false;"
         ></a-image>
 
         <!-- справа -->
@@ -78,9 +84,10 @@
           class="poi-ar"
           data-poi="3"
           src="#poi-dot"
-          position="0.6 -0.2 0"
-          width="0.25"
-          height="0.25"
+          position="0.6 -0.2 0.02"
+          width="0.08"
+          height="0.08"
+          material="transparent: true; alphaTest: 0.5; depthTest: false;"
         ></a-image>
       </a-entity>
     </a-entity>
@@ -88,7 +95,7 @@
 
   <!-- UI-слой -->
   <div class="ar-ui" data-ar-root>
-    <!-- Кнопка выхода слева сверху: теперь квадрат без текста -->
+    <!-- Большая квадратная кнопка выхода -->
     <div class="ar-topbar safe-area-top">
       <button
         class="btn-back"
