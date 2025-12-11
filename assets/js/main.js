@@ -56,7 +56,7 @@ function initMenuPage() {
     '[data-screen="menu-instructions"]'
   );
 
-  if (!menuMain) return; // не index.html
+  if (!menuMain) return; // значит, это не index.html
 
   const openInstructionsBtn = document.querySelector(
     '[data-action="open-instructions"]'
@@ -131,7 +131,7 @@ function initArPage() {
     window.location.href = "index.html";
   });
 
-  // -------- контент трёх точек интереса --------
+  // -------- контент точек интереса --------
 
   const poiContent = {
     1: {
@@ -182,7 +182,7 @@ function initArPage() {
     const poiGroup = document.querySelector("#poi-group");
     const poiEls = Array.from(document.querySelectorAll(".poi-ar"));
 
-    // Клики по AR-точкам
+    // --- клики по POI (мышь / тач через raycaster) ---
     poiEls.forEach((el) => {
       const id = el.dataset.poi;
       if (!id) return;
@@ -199,18 +199,19 @@ function initArPage() {
       });
     });
 
-    // Закрытие вводной панели — включаем POI
+    // --- закрытие вводной панели: включаем POI ---
     introCloseBtn?.addEventListener("click", () => {
       if (introOverlay) introOverlay.hidden = true;
       if (poiGroup) poiGroup.setAttribute("visible", "true");
     });
 
-    // Закрытие панели точки интереса
+    // --- закрытие панели точки интереса ---
     poiCloseBtn?.addEventListener("click", () => {
       if (poiPanel) poiPanel.hidden = true;
     });
 
     if (targetEntity) {
+      // Срабатывает, когда MindAR нашёл метку
       targetEntity.addEventListener("targetFound", () => {
         if (scanOverlay) scanOverlay.style.display = "none";
 
@@ -220,11 +221,11 @@ function initArPage() {
         }
       });
 
-      // targetLost — панель по ТЗ не закрываем
+      // targetLost специально не обрабатываем — по ТЗ панель не закрываем
     }
   }
 
-  // -------- лёгкая проверка камеры (без getUserMedia, не ломаем MindAR) --------
+  // -------- минимальная проверка камеры (без getUserMedia, не ломаем MindAR) --------
 
   async function checkCameraSupport() {
     if (!scanTextEl) return;
@@ -250,7 +251,6 @@ function initArPage() {
       console.warn("enumerateDevices error", e);
     }
 
-    // Если Permissions API поддерживается — проверим, не запрещена ли камера
     if (navigator.permissions && navigator.permissions.query) {
       try {
         const status = await navigator.permissions.query({ name: "camera" });
@@ -272,21 +272,12 @@ function initArPage() {
       }
     }
 
-    // Всё ок — MindAR сам покажет нативный запрос доступа
+    // Всё ок — MindAR сам запросит доступ к камере
     scanTextEl.textContent = "Наведите камеру на картину, чтобы начать.";
   }
 
   checkCameraSupport();
-
-  // Ждём, пока загрузится a-scene, чтобы все a-entity уже были в DOM
-  const sceneEl = document.querySelector("a-scene");
-  if (sceneEl) {
-    if (sceneEl.hasLoaded) {
-      setupArLogic();
-    } else {
-      sceneEl.addEventListener("loaded", setupArLogic);
-    }
-  }
+  setupArLogic(); // сразу вешаем все обработчики
 }
 
 // =====================
