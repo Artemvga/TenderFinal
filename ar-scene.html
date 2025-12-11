@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>AR-квест «Образы Москвы» — сцена</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <link rel="stylesheet" href="assets/css/style.css" />
+
+  <!-- A-Frame и MindAR (можешь поменять версию при необходимости) -->
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image-aframe.prod.js"></script>
+
+  <script src="assets/js/main.js" defer></script>
+</head>
+<body class="page page--ar">
+  <!-- AR-сцена -->
+  <a-scene
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no;"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: true"
+    renderer="colorManagement: true, physicallyCorrectLights: true"
+    embedded
+    class="ar-scene"
+  >
+    <a-assets>
+      <img id="painting-preview" src="assets/png/Paint.png" />
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: true"></a-camera>
+
+    <!-- Невидимый/полупрозрачный plane, привязанный к маркеру -->
+    <a-entity id="artwork-target" mindar-image-target="targetIndex: 0">
+      <a-plane
+        src="#painting-preview"
+        position="0 0 0"
+        height="1"
+        width="1.5"
+        material="opacity: 0; transparent: true"
+      ></a-plane>
+    </a-entity>
+  </a-scene>
+
+  <!-- UI-слой -->
+  <div class="ar-ui" data-ar-root>
+    <!-- Кнопка выхода слева сверху -->
+    <div class="ar-topbar safe-area-top">
+      <button class="btn-back" data-action="exit-to-menu">
+        Выйти
+      </button>
+    </div>
+
+    <!-- Экран «Сканируем» при заходе в сцену -->
+    <div class="ar-overlay ar-overlay--scan" data-ar-scan>
+      <div class="ar-overlay__inner">
+        <img
+          src="assets/png/Banner_ScanPicture.png"
+          alt="Сканирование"
+          class="ar-overlay__image"
+        />
+        <p class="ar-overlay__text">
+          Наведите камеру на картину, чтобы начать.
+        </p>
+      </div>
+    </div>
+
+    <!-- Вводная панель при первом распознавании -->
+    <div class="ar-overlay ar-overlay--panel" data-ar-intro hidden>
+      <div class="panel">
+        <h2 class="panel__title">
+          Репин Илья Ефимович «Торжественное заседание Государственного совета 7 мая
+          1901 года в день столетнего юбилея со дня его учреждения». 1903 год.
+        </h2>
+        <p class="panel__text">
+          Картина была выполнена по правительственному заказу к 100-летнему юбилею
+          Государственного совета, чтобы увековечить историческое событие в
+          Мариинском дворце и показать всех участников заседания. Репин писал с
+          натуры: он присутствовал на заседаниях, делал множество фотографий,
+          просил сановников вести себя естественно и непременно занимать свои
+          обычные места.
+        </p>
+
+        <button class="btn btn--primary panel__button" data-action="close-intro">
+          Перейти к точкам интереса
+        </button>
+      </div>
+    </div>
+
+    <!-- Панель точки интереса (контент меняется из JS) -->
+    <div class="ar-overlay ar-overlay--panel" data-ar-poi-panel hidden>
+      <div class="panel">
+        <h2 class="panel__title" data-poi-title></h2>
+        <p class="panel__text" data-poi-text></p>
+
+        <button class="btn btn--primary panel__button" data-action="close-poi">
+          Закрыть
+        </button>
+      </div>
+    </div>
+
+    <!-- Три точки интереса, появляются после закрытия вводной панели -->
+    <div class="ar-pois safe-area-bottom" data-ar-pois hidden>
+      <button class="poi" data-poi="1" aria-label="Точка интереса 1"></button>
+      <button class="poi" data-poi="2" aria-label="Точка интереса 2"></button>
+      <button class="poi" data-poi="3" aria-label="Точка интереса 3"></button>
+    </div>
+  </div>
+</body>
+</html>

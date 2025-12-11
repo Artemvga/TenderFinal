@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>AR-квест «Образы Москвы»</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <!-- Основные стили -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+
+  <!-- Предзагрузка ключевых картинок -->
+  <link rel="preload" as="image" href="assets/png/BG.png" />
+  <link rel="preload" as="image" href="assets/png/Button_BG_Color.png" />
+  <link rel="preload" as="image" href="assets/png/Button_BG_White.png" />
+  <link rel="preload" as="image" href="assets/png/Banner_ScanPicture.png" />
+
+  <!-- Основной JS -->
+  <script src="assets/js/main.js" defer></script>
+</head>
+<body class="page page--menu">
+  <!-- Фон -->
+  <div class="page-bg">
+    <img src="assets/png/BG.png" alt="" class="page-bg__image" />
+    <div class="page-bg__overlay"></div>
+  </div>
+
+  <!-- Прелоадер перед загрузкой ассетов -->
+  <div class="preloader" data-screen="preloader">
+    <div class="preloader__content">
+      <img src="assets/png/Banner_ScanPicture.png" alt="Загрузка" class="preloader__image" />
+      <p class="preloader__label">Загружаем AR-квест…</p>
+    </div>
+  </div>
+
+  <!-- Главное меню -->
+  <main class="menu" data-screen="menu-main" hidden>
+    <section class="menu-card">
+      <p class="menu-kicker">AR-квест</p>
+      <h1 class="menu-title">«Образы Москвы»</h1>
+
+      <p class="menu-text">
+        Погрузитесь в атмосферу старой и современной Москвы сквозь шедевры
+        русских художников.
+      </p>
+
+      <div class="menu-actions">
+        <button class="btn btn--light" data-action="open-instructions">
+          Смотреть инструкцию
+        </button>
+        <button class="btn btn--primary" data-action="start-ar">
+          Сканировать картины
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Экран инструкции -->
+  <main class="screen screen--instructions" data-screen="menu-instructions" hidden>
+    <section class="screen-card">
+      <header class="screen-header">
+        <h2 class="screen-title">Как пользоваться AR-квестом</h2>
+      </header>
+
+      <div class="screen-body">
+        <ul class="instruction-list">
+          <li class="instruction-item">
+            <div class="instruction-item__emoji">🔍</div>
+            <div class="instruction-item__text">
+              <h3>Как начать сканирование</h3>
+              <p>
+                Найдите одну из картин выставки и наведите на неё камеру.
+                Старайтесь держать телефон ровно, чтобы система быстрее
+                распознала полотно.
+              </p>
+            </div>
+          </li>
+
+          <li class="instruction-item">
+            <div class="instruction-item__emoji">🎧</div>
+            <div class="instruction-item__text">
+              <h3>Что будет дальше</h3>
+              <p>
+                После распознавания появится AR-гид, который расскажет о сюжете
+                картины и её деталях.
+              </p>
+            </div>
+          </li>
+
+          <li class="instruction-item">
+            <div class="instruction-item__emoji">✨</div>
+            <div class="instruction-item__text">
+              <h3>Точки интереса</h3>
+              <p>
+                Во время просмотра на картине появятся интерактивные метки.
+                Нажимайте на них, чтобы узнать скрытые элементы и историю
+                изображения.
+              </p>
+            </div>
+          </li>
+
+          <li class="instruction-item">
+            <div class="instruction-item__emoji">❓</div>
+            <div class="instruction-item__text">
+              <h3>Мини-квиз</h3>
+              <p>
+                В конце вас ждёт несколько простых вопросов о том, что вы
+                увидели. Отвечайте внимательно — это повлияет на итоговый
+                результат.
+              </p>
+            </div>
+          </li>
+
+          <li class="instruction-item">
+            <div class="instruction-item__emoji">🏁</div>
+            <div class="instruction-item__text">
+              <h3>Завершение</h3>
+              <p>
+                Пройдя все шаги, вы получите своё общее впечатление — результат
+                прохождения квеста.
+              </p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <footer class="screen-footer">
+        <button class="btn btn--primary" data-action="back-to-menu">
+          Назад
+        </button>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>
