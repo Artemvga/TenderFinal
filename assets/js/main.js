@@ -1,48 +1,14 @@
 // assets/js/main.js
 
 // ======================================================
-// 0) ПАТЧ ДЛЯ ANDROID: "любой камерой", если facingMode упал
-// ======================================================
-// Это помогает в случаях, когда библиотека пытается открыть environment-камеру
-// и на конкретном телефоне/браузере это падает. Тогда мы автоматически
-// повторяем запрос с максимально простыми constraints: { video: true }.
-(() => {
-  // Патчим ТОЛЬКО на AR-странице (где есть mindar-image сцена)
-  const isArPage = !!document.querySelector("a-scene[mindar-image]");
-  if (!isArPage) return;
-
-  const md = navigator.mediaDevices;
-  if (!md || typeof md.getUserMedia !== "function") return;
-
-  // чтобы не патчить дважды
-  if (md.getUserMedia.__patchedForMindAR) return;
-
-  const original = md.getUserMedia.bind(md);
-
-  md.getUserMedia = async (constraints) => {
-    try {
-      return await original(constraints);
-    } catch (err1) {
-      console.warn("[Camera] First getUserMedia failed, retrying with video:true", err1);
-
-      // 1) если были хитрые constraints — пробуем "облегчённый" вариант без facingMode/deviceId
-      try {
-        const fallback = { audio: false, video: true };
-        return await original(fallback);
-      } catch (err2) {
-        console.error("[Camera] Fallback getUserMedia failed", err2);
-        throw err1; // чаще информативнее (NotAllowedError и т.п.)
-      }
-    }
-  };
-
-  md.getUserMedia.__patchedForMindAR = true;
-})();
-
-// ======================================================
-// 1) ПРЕДЗАГРУЗКА РЕСУРСОВ (МЕНЮ)
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ПРЕДЗАГРУЗКИ РЕСУРСОВ
 // ======================================================
 
+/**
+ * Простая предзагрузка массива картинок.
+ * @param {string[]} urls - список путей к изображениям
+ * @returns {Promise<void[]>}
+ */
 function preloadImages(urls) {
   const promises = urls.map((url) => {
     return new Promise((resolve) => {
@@ -54,7 +20,12 @@ function preloadImages(urls) {
   return Promise.all(promises);
 }
 
-async function preloadCoreAssets() {
+/**
+ * Предзагружаем шрифты, ключевые картинки и targets.mind.
+ * Вызываем onProgress, чтобы обновлять прогрессбар на прелоадере.
+ * @param {(progress: number, text?: string) => void} onProgress
+ */
+async function preloadCoreAssets(onProgress) {
   const images = [
     "assets/png/BG.png",
     "assets/png/Button_BG_Color.png",
@@ -65,89 +36,142 @@ async function preloadCoreAssets() {
     "assets/png/Paint.png",
   ];
 
+  // 1) ждём шрифты
   const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
-  await Promise.all([preloadImages(images), fontsReady]);
 
-  // targets.mind — попробуем слегка прогреть кэш (не критично)
+  if (onProgress) onProgress(0.15, "Загружаем шрифты…");
+  await fontsReady;
+
+  // 2) грузим изображения
+  if (onProgress) onProgress(0.55, "Загружаем изображения…");
+  await preloadImages(images);
+
+  // 3) пробуем заранее скачать targets.mind (AR-таргет)
+  if (onProgress) onProgress(0.85, "Проверяем AR-данные…");
   try {
     await fetch("targets.mind", { cache: "force-cache" });
   } catch (e) {
-    // не блокируем
+    console.warn("Не удалось предварительно загрузить targets.mind", e);
   }
+
+  if (onProgress) onProgress(1, "Готово! Запускаем меню…");
 }
 
 // ======================================================
-// 2) МЕНЮ (index.html)
+// ГЛАВНОЕ МЕНЮ + ЭКРАН ИНСТРУКЦИИ (index.html)
 // ======================================================
 
 function initMenuPage() {
+  // Если на странице нет главного меню — это не index.html
   const preloader = document.querySelector('[data-screen="preloader"]');
   const menuMain = document.querySelector('[data-screen="menu-main"]');
-  const screenInstructions = document.querySelector('[data-screen="menu-instructions"]');
+  const screenInstructions = document.querySelector(
+    '[data-screen="menu-instructions"]'
+  );
 
-  if (!menuMain) return; // не index.html
+  if (!menuMain) return; // тихо выходим — дальше отработает initArPage
 
-  const openInstructionsBtn = document.querySelector('[data-action="open-instructions"]');
+  const openInstructionsBtn = document.querySelector(
+    '[data-action="open-instructions"]'
+  );
   const startArBtn = document.querySelector('[data-action="start-ar"]');
   const backToMenuBtn = document.querySelector('[data-action="back-to-menu"]');
 
+  const barFill = document.querySelector(".preloader__bar-fill");
+  const labelEl = document.querySelector("[data-preloader-label]");
+
+  /**
+   * Обновление прогресса на прелоадере.
+   * @param {number} progress 0..1
+   * @param {string} [text]
+   */
+  function updatePreloader(progress, text) {
+    const clamped = Math.max(0, Math.min(progress, 1));
+    if (barFill) {
+      barFill.style.width = `${clamped * 100}%`;
+    }
+    if (labelEl && text) {
+      labelEl.textContent = text;
+    }
+  }
+
+  /**
+   * Переключение между экранами:
+   * - главное меню (menu-main)
+   * - инструкция (menu-instructions)
+   */
   function showScreen(screenToShow) {
-    [menuMain, screenInstructions].forEach((screen) => {
+    const screens = [menuMain, screenInstructions];
+    screens.forEach((screen) => {
       if (!screen) return;
       screen.hidden = screen !== screenToShow;
     });
   }
 
+  // Асинхронный блок: сначала предзагружаем ресурсы, потом показываем меню
   (async () => {
     try {
-      await preloadCoreAssets();
+      await preloadCoreAssets(updatePreloader);
     } catch (e) {
-      console.warn("Preload failed", e);
+      console.error("Preload failed", e);
+      // Даже если что-то не загрузилось — всё равно покажем меню
     }
 
-    if (preloader) preloader.style.display = "none";
+    if (preloader) {
+      preloader.style.display = "none";
+    }
     showScreen(menuMain);
   })();
 
-  openInstructionsBtn?.addEventListener("click", () => {
-    showScreen(screenInstructions);
-  });
+  // Открыть инструкцию
+  if (openInstructionsBtn) {
+    openInstructionsBtn.addEventListener("click", () => {
+      showScreen(screenInstructions);
+    });
+  }
 
-  backToMenuBtn?.addEventListener("click", () => {
-    showScreen(menuMain);
-  });
+  // Назад в меню из инструкции
+  if (backToMenuBtn) {
+    backToMenuBtn.addEventListener("click", () => {
+      showScreen(menuMain);
+    });
+  }
 
-  startArBtn?.addEventListener("click", () => {
-    window.location.href = "ar-scene.html";
-  });
+  // Переход в AR-сцену
+  if (startArBtn) {
+    startArBtn.addEventListener("click", () => {
+      window.location.href = "ar-scene.html";
+    });
+  }
 }
 
 // ======================================================
-// 3) AR-СЦЕНА (ar-scene.html)
+// AR-СЦЕНА (ar-scene.html)
 // ======================================================
 
 function initArPage() {
+  // Если на странице нет корневого AR-UI — это не ar-scene.html
   const arRoot = document.querySelector("[data-ar-root]");
   if (!arRoot) return;
 
+  // Элементы AR UI
   const exitBtn = document.querySelector('[data-action="exit-to-menu"]');
   const scanOverlay = document.querySelector("[data-ar-scan]");
-  const scanText = document.querySelector("[data-scan-text]");
-
   const introOverlay = document.querySelector("[data-ar-intro]");
   const introCloseBtn = document.querySelector('[data-action="close-intro"]');
-
   const poiPanel = document.querySelector("[data-ar-poi-panel]");
   const poiCloseBtn = document.querySelector('[data-action="close-poi"]');
   const poiTitleEl = document.querySelector("[data-poi-title]");
   const poiTextEl = document.querySelector("[data-poi-text]");
 
-  const sceneEl = document.querySelector("a-scene");
-  const targetEntity = document.querySelector("#artwork-target");
-  const poiGroup = document.querySelector("#poi-group");
-  const poiHits = Array.from(document.querySelectorAll(".poi-hit"));
+  // Кнопка выхода слева сверху
+  if (exitBtn) {
+    exitBtn.addEventListener("click", () => {
+      window.location.href = "index.html";
+    });
+  }
 
-  // Контент
+  // Контент для трёх точек интереса
   const poiContent = {
     1: {
       title: "Потерянный портрет.",
@@ -182,20 +206,18 @@ function initArPage() {
     },
   };
 
-  // Флаги
+  // Флаг, чтобы вводная панель показалась только один раз
   let introShown = false;
+  // Флаг, чтобы знать, отслеживается ли сейчас маркер (targetFound / targetLost)
   let markerVisible = false;
-
-  // Важно: пока открыта вводная/POI панель — тапы по POI не работают.
-  // И после закрытия включаем через 1 секунду.
+  // Флаг включённости хит-теста по POI:
+  // по умолчанию false — сначала пользователь читает вводную.
   let poiTouchEnabled = false;
 
-  // Выход
-  exitBtn?.addEventListener("click", () => {
-    window.location.href = "index.html";
-  });
-
-  // Показ POI панели
+  /**
+   * Показ панели с содержимым точки интереса.
+   * @param {number} id - 1, 2 или 3
+   */
   function showPoi(id) {
     const content = poiContent[id];
     if (!content) return;
@@ -205,218 +227,217 @@ function initArPage() {
     if (poiPanel) poiPanel.hidden = false;
   }
 
-  // Закрытие вводной панели
-  introCloseBtn?.addEventListener("click", () => {
-    if (introOverlay) introOverlay.hidden = true;
-    if (poiGroup) poiGroup.setAttribute("visible", "true");
+  /**
+   * Логика хит-теста: проверяем попадание по экрану вокруг POI.
+   * @param {Element[]} poiHits - список .poi-hit (невидимых кругов)
+   * @param {Element|null} poiGroup - контейнер с POI
+   */
+  function setupPoiTouchHitTest(poiHits, poiGroup) {
+    const sceneEl = document.querySelector("a-scene");
+    if (!sceneEl || !poiHits.length) return;
 
-    // включаем отслеживание POI через 1 секунду
-    setTimeout(() => {
-      poiTouchEnabled = true;
-    }, 1000);
-  });
-
-  // Закрытие POI панели
-  poiCloseBtn?.addEventListener("click", () => {
-    if (poiPanel) poiPanel.hidden = true;
-
-    // включаем отслеживание POI через 1 секунду
-    setTimeout(() => {
-      poiTouchEnabled = true;
-    }, 1000);
-  });
-
-  // ======================================================
-  // КАМЕРА: arReady / arError + форс-ресайз
-  // ======================================================
-
-  function forceARResize() {
-    const w = window.innerWidth || document.documentElement.clientWidth || 1;
-    const h = window.innerHeight || document.documentElement.clientHeight || 1;
-
-    // A-Frame renderer/camera
-    try {
-      if (sceneEl && sceneEl.renderer) {
-        sceneEl.renderer.setSize(w, h);
-      }
-      if (sceneEl && sceneEl.camera) {
-        sceneEl.camera.aspect = w / h;
-        sceneEl.camera.updateProjectionMatrix();
-      }
-    } catch (e) {}
-
-    // canvas
-    try {
-      if (sceneEl && sceneEl.canvas) {
-        sceneEl.canvas.style.width = "100vw";
-        sceneEl.canvas.style.height = "100vh";
-      }
-    } catch (e) {}
-
-    // video (MindAR обычно создаёт <video> в DOM)
-    const videoEl = document.querySelector("video");
-    if (videoEl) {
-      videoEl.style.width = "100vw";
-      videoEl.style.height = "100vh";
-      videoEl.style.objectFit = "cover";
-    }
-  }
-
-  if (sceneEl) {
-    // MindAR события (официальные)
-    sceneEl.addEventListener("arReady", () => {
-      // камера должна быть готова
-      if (scanText) scanText.textContent = "Наведите камеру на картину, чтобы начать.";
-      // форсим ресайз (часто решает «камера в углу / не видно»)
-      setTimeout(forceARResize, 50);
-      setTimeout(forceARResize, 250);
-    });
-
-    sceneEl.addEventListener("arError", () => {
-      // чаще всего это камера не стартовала / нет прав
-      if (scanText) {
-        scanText.textContent =
-          "Камера не запустилась. Проверьте разрешение камеры для сайта в Chrome (иконка замка) и перезайдите.";
-      }
-      setTimeout(forceARResize, 100);
-    });
-
-    // Дополнительно: ресайз при повороте/изменении
-    window.addEventListener("resize", () => {
-      forceARResize();
-    });
-
-    window.addEventListener("orientationchange", () => {
-      setTimeout(forceARResize, 200);
-      setTimeout(forceARResize, 600);
-    });
-  }
-
-  // ======================================================
-  // POI хит-тест по экрану (тап рядом с точкой)
-  // ======================================================
-
-  const THREERef = window.THREE || (window.AFRAME && window.AFRAME.THREE);
-
-  function getPoiScreenPositions() {
-    if (!sceneEl || !sceneEl.camera || !THREERef) return [];
-
-    const w = window.innerWidth || document.documentElement.clientWidth || 1;
-    const h = window.innerHeight || document.documentElement.clientHeight || 1;
-
-    const results = [];
-
-    poiHits.forEach((hit) => {
-      const id = parseInt(hit.dataset.poi, 10);
-      if (!id || !poiContent[id]) return;
-
-      const worldPos = new THREERef.Vector3();
-      hit.object3D.getWorldPosition(worldPos);
-      worldPos.project(sceneEl.camera);
-
-      const x = (worldPos.x * 0.5 + 0.5) * w;
-      const y = (-worldPos.y * 0.5 + 0.5) * h;
-
-      results.push({ id, x, y });
-    });
-
-    return results;
-  }
-
-  function handleTap(evt) {
-    // Если пользователь тыкает по UI (кнопка выхода/панель) — POI не трогаем
-    const target = evt.target;
-    if (target && target.closest && target.closest(".panel, .btn-back")) return;
-
-    // Если открыта вводная или POI панель — полностью отключаем обработку
-    const introVisible = introOverlay && !introOverlay.hidden;
-    const poiPanelVisible = poiPanel && !poiPanel.hidden;
-    if (introVisible || poiPanelVisible) return;
-
-    if (!poiTouchEnabled) return;
-    if (!markerVisible) return;
-
-    // POI должны быть видимы
-    const groupVisible = poiGroup && (poiGroup.getAttribute("visible") === true || poiGroup.getAttribute("visible") === "true");
-    if (!groupVisible) return;
-
-    const w = window.innerWidth || document.documentElement.clientWidth || 1;
-    const h = window.innerHeight || document.documentElement.clientHeight || 1;
-
-    // Тап координаты
-    const clientX = evt.clientX ?? (evt.touches && evt.touches[0] && evt.touches[0].clientX);
-    const clientY = evt.clientY ?? (evt.touches && evt.touches[0] && evt.touches[0].clientY);
-    if (clientX == null || clientY == null) return;
-
-    // Радиус вокруг точки: 12% от меньшей стороны экрана
-    const radius = Math.min(w, h) * 0.12;
-    const radiusSq = radius * radius;
-
-    const poiScreens = getPoiScreenPositions();
-
-    let bestId = null;
-    let bestDistSq = Infinity;
-
-    for (const p of poiScreens) {
-      const dx = clientX - p.x;
-      const dy = clientY - p.y;
-      const distSq = dx * dx + dy * dy;
-
-      if (distSq <= radiusSq && distSq < bestDistSq) {
-        bestDistSq = distSq;
-        bestId = p.id;
-      }
+    // Берём THREE из глобала (A-Frame его поднимает)
+    const THREERef =
+      window.THREE || (window.AFRAME && window.AFRAME.THREE);
+    if (!THREERef) {
+      console.warn("THREE не найден, хит-тест по POI недоступен");
+      return;
     }
 
-    if (bestId != null) {
-      // Открываем POI панель и выключаем трекинг до закрытия
-      poiTouchEnabled = false;
-      showPoi(bestId);
+    /**
+     * Вычисляем экранные координаты всех POI (.poi-hit).
+     * @returns {{id:number,x:number,y:number}[]}
+     */
+    function getPoiScreenPositions() {
+      const camera = sceneEl.camera;
+      if (!camera) return [];
+      const w =
+        window.innerWidth || document.documentElement.clientWidth || 1;
+      const h =
+        window.innerHeight || document.documentElement.clientHeight || 1;
+
+      const results = [];
+
+      poiHits.forEach((hit) => {
+        const idStr = hit.dataset.poi;
+        const id = parseInt(idStr, 10);
+        if (!id || !poiContent[id]) return;
+
+        const worldPos = new THREERef.Vector3();
+        hit.object3D.getWorldPosition(worldPos);
+
+        // Проецируем мировую позицию в NDC (-1..1)
+        worldPos.project(camera);
+
+        // Переводим в пиксели экрана
+        const x = (worldPos.x * 0.5 + 0.5) * w;
+        const y = (-worldPos.y * 0.5 + 0.5) * h;
+
+        results.push({ id, x, y });
+      });
+
+      return results;
     }
-  }
 
-  // Pointer Events (на Android Chrome — идеально)
-  if ("PointerEvent" in window) {
-    window.addEventListener("pointerdown", handleTap, { passive: true });
-  } else {
-    // fallback
-    window.addEventListener("touchstart", handleTap, { passive: true });
-    window.addEventListener("click", handleTap);
-  }
+    /**
+     * Обработка клика/тача по экрану: проверяем, попали ли мы
+     * в радиус вокруг одной из точек.
+     */
+    function handlePointer(evt) {
+      if (!poiGroup) return;
 
-  // ======================================================
-  // MindAR: targetFound/targetLost
-  // ======================================================
+      // 1) Если вводная или панель POI видны — игнорируем хит-тест,
+      //    чтобы не мешать нажимать на кнопки.
+      const introVisible = introOverlay && !introOverlay.hidden;
+      const poiPanelVisible = poiPanel && !poiPanel.hidden;
+      if (introVisible || poiPanelVisible) {
+        return;
+      }
 
-  if (targetEntity) {
-    targetEntity.addEventListener("targetFound", () => {
-      markerVisible = true;
+      // 2) Доп. флаг: если хит-тест временно выключен — выходим.
+      if (!poiTouchEnabled) return;
 
-      // прячем экран сканирования
-      if (scanOverlay) scanOverlay.style.display = "none";
+      // 3) POI должны быть видимы (вводная уже закрыта)
+      const visibleAttr = poiGroup.getAttribute("visible");
+      const groupVisible =
+        visibleAttr === true || visibleAttr === "true";
+      if (!groupVisible) return;
 
-      // показываем вводную один раз
-      if (!introShown && introOverlay) {
-        introOverlay.hidden = false;
-        introShown = true;
+      // 4) Маркер должен быть отслеживаемым
+      if (!markerVisible) return;
 
-        // пока вводная открыта — POI не кликаются
+      const isTouch = evt.touches && evt.touches.length;
+      const clientX = isTouch ? evt.touches[0].clientX : evt.clientX;
+      const clientY = isTouch ? evt.touches[0].clientY : evt.clientY;
+      if (clientX == null || clientY == null) return;
+
+      const w =
+        window.innerWidth || document.documentElement.clientWidth || 1;
+      const h =
+        window.innerHeight || document.documentElement.clientHeight || 1;
+
+      // Радиус вокруг точки: 12% от меньшей стороны экрана
+      const radius = Math.min(w, h) * 0.12;
+      const radiusSq = radius * radius;
+
+      const poiScreens = getPoiScreenPositions();
+      let bestId = null;
+      let bestDistSq = Infinity;
+
+      for (const p of poiScreens) {
+        const dx = clientX - p.x;
+        const dy = clientY - p.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq <= radiusSq && distSq < bestDistSq) {
+          bestDistSq = distSq;
+          bestId = p.id;
+        }
+      }
+
+      if (bestId != null) {
+        // Пользователь попал в POI → показываем панель
+        // и сразу выключаем хит-тест до закрытия панели.
         poiTouchEnabled = false;
+        showPoi(bestId);
       }
-    });
+    }
 
-    targetEntity.addEventListener("targetLost", () => {
-      markerVisible = false;
-      // по ТЗ панели НЕ закрываем
+    // Слушаем клики мышью и тапы на всём окне
+    window.addEventListener("click", handlePointer);
+    window.addEventListener("touchstart", handlePointer, {
+      passive: true,
     });
   }
+
+  /**
+   * Основная логика AR:
+   * - targetFound → показываем вводную панель
+   * - закрытие вводной → показываем POI + включаем хит-тест через 1 секунду
+   * - хит-тест по экрану вокруг POI → панели с текстом
+   */
+  function setupArLogic() {
+    const targetEntity = document.querySelector("#artwork-target");
+    const poiGroup = document.querySelector("#poi-group");
+    const poiHits = Array.from(document.querySelectorAll(".poi-hit"));
+
+    // Немного hover-анимации для десктопа (если работает raycaster)
+    poiHits.forEach((hit) => {
+      const wrapper = hit.parentElement;
+      const icon = wrapper
+        ? wrapper.querySelector(".poi-icon")
+        : null;
+
+      if (!icon) return;
+
+      hit.addEventListener("mouseenter", () => {
+        icon.setAttribute("scale", "1.15 1.15 1.15");
+      });
+      hit.addEventListener("mouseleave", () => {
+        icon.setAttribute("scale", "1 1 1");
+      });
+    });
+
+    // Хит-тест по экрану (клик/тап в радиусе вокруг POI)
+    setupPoiTouchHitTest(poiHits, poiGroup);
+
+    // Закрытие вводной панели → включаем POI и
+    // включаем хит-тест ТОЛЬКО через 1 секунду
+    if (introCloseBtn) {
+      introCloseBtn.addEventListener("click", () => {
+        if (introOverlay) introOverlay.hidden = true;
+        if (poiGroup) poiGroup.setAttribute("visible", "true");
+
+        setTimeout(() => {
+          poiTouchEnabled = true;
+        }, 1000);
+      });
+    }
+
+    // Закрытие панели точки интереса
+    if (poiCloseBtn) {
+      poiCloseBtn.addEventListener("click", () => {
+        if (poiPanel) poiPanel.hidden = true;
+
+        // Включаем хит-тест ПОСЛЕ закрытия панели, с паузой 1 сек.
+        setTimeout(() => {
+          poiTouchEnabled = true;
+        }, 1000);
+      });
+    }
+
+    // Реакция на распознавание маркера MindAR
+    if (targetEntity) {
+      targetEntity.addEventListener("targetFound", () => {
+        markerVisible = true;
+
+        // Прячем экран "Сканируем"
+        if (scanOverlay) {
+          scanOverlay.style.display = "none";
+        }
+
+        // Первый раз показываем вводную панель
+        if (!introShown && introOverlay) {
+          introOverlay.hidden = false;
+          introShown = true;
+        }
+      });
+
+      // targetLost: маркер перестали видеть, но панель по ТЗ не закрываем.
+      targetEntity.addEventListener("targetLost", () => {
+        markerVisible = false;
+      });
+    }
+  }
+
+  // Только логика AR — камерой полностью управляет MindAR
+  setupArLogic();
 }
 
 // ======================================================
-// 4) Точка входа
+// ТОЧКА ВХОДА ДЛЯ ОБЕИХ СТРАНИЦ
 // ======================================================
 
 document.addEventListener("DOMContentLoaded", () => {
-  initMenuPage();
-  initArPage();
+  initMenuPage(); // отработает только на index.html
+  initArPage();   // отработает только на ar-scene.html
 });
