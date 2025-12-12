@@ -292,16 +292,6 @@ button {
   appearance: none;
 }
 
-.btn {
-  touch-action: manipulation;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  filter: grayscale(0.2);
-}
-
 .btn--primary {
   background-image: url("../png/Button_BG_Color.png");
   background-size: cover;
@@ -642,5 +632,64 @@ button {
 
   .panel__text {
     font-size: 13px;
+  }
+}
+
+/* =========================================
+   FIX: убрать чёрные полосы (full-bleed камера на мобилках)
+   ========================================= */
+
+/* На современных браузерах лучше использовать динамические единицы viewport */
+@supports (height: 100dvh) {
+  .page--ar a-scene {
+    inset: 0;
+    width: 100dvw;
+    height: 100dvh;
+  }
+
+  .page--ar canvas.a-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100dvw !important;
+    height: 100dvh !important;
+  }
+
+  /* Центрируем видеопоток и растягиваем "cover", чтобы не было полос справа/слева */
+  .page--ar video {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 100dvw !important;
+    height: 100dvh !important;
+    transform: translate(-50%, -50%) !important;
+    object-fit: cover !important;
+    object-position: center center !important;
+  }
+}
+
+/* Фоллбэк для браузеров без dvh/dvw */
+@supports not (height: 100dvh) {
+  .page--ar a-scene {
+    inset: 0;
+    width: 100vw;
+    height: calc(var(--vh, 1vh) * 100);
+  }
+
+  .page--ar canvas.a-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw !important;
+    height: calc(var(--vh, 1vh) * 100) !important;
+  }
+
+  .page--ar video {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 100vw !important;
+    height: calc(var(--vh, 1vh) * 100) !important;
+    transform: translate(-50%, -50%) !important;
+    object-fit: cover !important;
+    object-position: center center !important;
   }
 }
