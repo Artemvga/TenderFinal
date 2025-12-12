@@ -429,6 +429,10 @@ button {
 }
 
 /* Видео и WebGL-канвас — растянуть полностью */
+.page--ar a-scene { 
+  z-index: 0;
+}
+
 .page--ar video,
 .page--ar canvas.a-canvas {
   position: fixed;
@@ -437,9 +441,13 @@ button {
   width: 100vw !important;
   height: 100vh !important;
   object-fit: cover;
-  z-index: -1; /* UI поверх */
+  z-index: 0;          /* было -1 */
+  pointer-events: none;
 }
 
+.ar-ui {
+  z-index: 10;         /* UI точно поверх камеры */
+}
 /* UI-слой над AR */
 .ar-ui {
   position: fixed;
