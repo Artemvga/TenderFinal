@@ -62,7 +62,7 @@ async function preloadCoreAssets(onProgress) {
 // ======================================================
 
 function initMenuPage() {
-  // Проверяем: если на странице нет главного меню — значит, это не index.html
+  // Если на странице нет главного меню — это не index.html
   const preloader = document.querySelector('[data-screen="preloader"]');
   const menuMain = document.querySelector('[data-screen="menu-main"]');
   const screenInstructions = document.querySelector(
@@ -114,7 +114,7 @@ function initMenuPage() {
       await preloadCoreAssets(updatePreloader);
     } catch (e) {
       console.error("Preload failed", e);
-      // Даже если что-то не загрузилось — даём зайти в меню
+      // Даже если что-то не загрузилось — всё равно покажем меню
     }
 
     if (preloader) {
@@ -137,10 +137,32 @@ function initMenuPage() {
     });
   }
 
-  // Переход в AR-сцену
+  // Переход в AR-сцену + запрос разрешения на камеру
   if (startArBtn) {
-    startArBtn.addEventListener("click", () => {
-      window.location.href = "ar-scene.html";
+    startArBtn.addEventListener("click", async () => {
+      // Если доступен WebRTC API — спрашиваем камеру заранее
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+          });
+
+          // Сразу освобождаем камеру, MindAR потом сам её откроет в AR-сцене
+          stream.getTracks().forEach((track) => track.stop());
+
+          // Переходим в AR-сцену
+          window.location.href = "ar-scene.html";
+        } catch (err) {
+          console.error("Camera permission error", err);
+          alert(
+            "Без доступа к камере AR-квест не запустится.\n" +
+              "Разрешите доступ к камере в настройках браузера и попробуйте снова."
+          );
+        }
+      } else {
+        // Старый браузер — пробуем просто перейти в AR-сцену
+        window.location.href = "ar-scene.html";
+      }
     });
   }
 }
@@ -226,7 +248,7 @@ function initArPage() {
 
   /**
    * Логика хит-теста: проверяем попадание по экрану вокруг POI.
-   * Эта функция не лезет в камеру — только работает с уже построенной 3D-сценой.
+   * Никаких дополнительных проверок камеры — ей управляет MindAR.
    * @param {Element[]} poiHits - список .poi-hit (невидимых кругов)
    * @param {Element|null} poiGroup - контейнер с POI
    */
@@ -284,13 +306,21 @@ function initArPage() {
     function handlePointer(evt) {
       if (!poiGroup) return;
 
-      // POI должны быть видимы (т.е. пользователь уже закрыл вводную панель)
+      // 1) Если видна вводная панель или панель POI — игнорируем хит-тест,
+      //    чтобы не мешать нажимать на кнопки и закрывать панели.
+      const introVisible = introOverlay && !introOverlay.hidden;
+      const poiPanelVisible = poiPanel && !poiPanel.hidden;
+      if (introVisible || poiPanelVisible) {
+        return;
+      }
+
+      // 2) POI должны быть видимы (т.е. пользователь уже закрыл вводную панель)
       const visibleAttr = poiGroup.getAttribute("visible");
       const groupVisible =
         visibleAttr === true || visibleAttr === "true";
       if (!groupVisible) return;
 
-      // Маркер должен быть отслеживаемым (targetFound уже был и не было targetLost)
+      // 3) Маркер должен быть отслеживаемым (targetFound уже был и не было targetLost)
       if (!markerVisible) return;
 
       const isTouch = evt.touches && evt.touches.length;
@@ -344,7 +374,7 @@ function initArPage() {
     const poiGroup = document.querySelector("#poi-group");
     const poiHits = Array.from(document.querySelectorAll(".poi-hit"));
 
-    // Найдём иконки рядом с зонами, чтобы давать визуальный отклик при наведении
+    // Немного hover-анимации для десктопа (если работает raycaster)
     poiHits.forEach((hit) => {
       const wrapper = hit.parentElement;
       const icon = wrapper
@@ -353,7 +383,6 @@ function initArPage() {
 
       if (!icon) return;
 
-      // Ховер от raycaster (на десктопе) — просто чуть увеличиваем иконку
       hit.addEventListener("mouseenter", () => {
         icon.setAttribute("scale", "1.15 1.15 1.15");
       });
@@ -362,10 +391,10 @@ function initArPage() {
       });
     });
 
-    // Запускаем хит-тест по экрану (клик/тап в радиусе вокруг POI)
+    // Хит-тест по экрану (клик/тап в радиусе вокруг POI)
     setupPoiTouchHitTest(poiHits, poiGroup);
 
-    // --- закрытие вводной панели: открываем точки интереса ---
+    // Закрытие вводной панели → включаем POI
     if (introCloseBtn) {
       introCloseBtn.addEventListener("click", () => {
         if (introOverlay) introOverlay.hidden = true;
@@ -373,14 +402,14 @@ function initArPage() {
       });
     }
 
-    // --- закрытие панели точки интереса ---
+    // Закрытие панели точки интереса
     if (poiCloseBtn) {
       poiCloseBtn.addEventListener("click", () => {
         if (poiPanel) poiPanel.hidden = true;
       });
     }
 
-    // --- реакция на распознавание маркера MindAR ---
+    // Реакция на распознавание маркера MindAR
     if (targetEntity) {
       targetEntity.addEventListener("targetFound", () => {
         markerVisible = true;
@@ -404,8 +433,30 @@ function initArPage() {
     }
   }
 
-  // НИКАКИХ проверок камеры: MindAR сам запросит доступ и запустит камеру
+  /**
+   * Автоматический запуск MindAR при входе в сцену.
+   * Это даёт автозапуск камеры без дополнительных кнопок.
+   */
+  function startMindarAutomatically(attempt = 0) {
+    const sceneEl = document.querySelector("a-scene");
+    if (!sceneEl || !sceneEl.systems || attempt > 50) return;
+
+    const mindarSystem = sceneEl.systems["mindar-image-system"];
+    if (mindarSystem && typeof mindarSystem.start === "function") {
+      mindarSystem
+        .start()
+        .catch((e) => {
+          console.error("MindAR start error", e);
+        });
+    } else {
+      // Если система ещё не готова — пробуем чуть позже
+      setTimeout(() => startMindarAutomatically(attempt + 1), 100);
+    }
+  }
+
+  // Вешаем логику AR и автостарт MindAR
   setupArLogic();
+  startMindarAutomatically();
 }
 
 // ======================================================

@@ -5,32 +5,35 @@
   <title>AR-квест «Образы Москвы» — сцена</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
+  <!-- Стили -->
   <link rel="stylesheet" href="assets/css/style.css" />
 
   <!-- A-Frame и MindAR -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image-aframe.prod.js"></script>
 
+  <!-- Основной JS -->
   <script src="assets/js/main.js" defer></script>
 </head>
 <body class="page page--ar">
   <!-- AR-сцена: камера на фоне, UI поверх -->
-
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: false; uiError: false; uiScanning: false;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: false; uiError: false; uiScanning: false;"
     color-space="sRGB"
     renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: true"
   >
     <a-assets>
+      <!-- превью картины (может быть невидимо, но нужно как референс) -->
       <img id="painting-preview" src="assets/png/Paint.png" />
+      <!-- текстура точки интереса -->
       <img id="poi-dot" src="assets/png/POI_Dot.png" />
     </a-assets>
 
-    <!-- Камера: не крутим пальцем, картинку держит только MindAR -->
+    <!-- Камера: не крутим пальцем, всё управление у MindAR -->
     <a-camera position="0 0 0" look-controls="enabled: false">
-      <!-- Курсор/рейкастер: кликаем по большим невидимым зонам .poi-hit -->
+      <!-- Курсор / raycaster для hover на десктопе (не обязателен, но можно оставить) -->
       <a-entity
         cursor="fuse: false; rayOrigin: mouse"
         raycaster="objects: .poi-hit; far: 20; interval: 0.1"
@@ -39,7 +42,7 @@
 
     <!-- Маркер MindAR -->
     <a-entity id="artwork-target" mindar-image-target="targetIndex: 0">
-      <!-- Невидимая плоскость картины (1.5 × 1, как "рамка" маркера) -->
+      <!-- Невидимая плоскость картины (1.5 × 1, центр — 0,0) -->
       <a-plane
         src="#painting-preview"
         position="0 0 0"

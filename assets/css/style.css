@@ -487,7 +487,6 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
   padding: 20px 16px;
 }
 
