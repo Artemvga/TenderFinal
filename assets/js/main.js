@@ -137,32 +137,10 @@ function initMenuPage() {
     });
   }
 
-  // Переход в AR-сцену + запрос разрешения на камеру
+  // Переход в AR-сцену — без каких-либо спец. проверок камеры
   if (startArBtn) {
-    startArBtn.addEventListener("click", async () => {
-      // Если доступен WebRTC API — спрашиваем камеру заранее
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" },
-          });
-
-          // Сразу освобождаем камеру, MindAR потом сам её откроет в AR-сцене
-          stream.getTracks().forEach((track) => track.stop());
-
-          // Переходим в AR-сцену
-          window.location.href = "ar-scene.html";
-        } catch (err) {
-          console.error("Camera permission error", err);
-          alert(
-            "Без доступа к камере AR-квест не запустится.\n" +
-              "Разрешите доступ к камере в настройках браузера и попробуйте снова."
-          );
-        }
-      } else {
-        // Старый браузер — пробуем просто перейти в AR-сцену
-        window.location.href = "ar-scene.html";
-      }
+    startArBtn.addEventListener("click", () => {
+      window.location.href = "ar-scene.html";
     });
   }
 }
@@ -233,7 +211,7 @@ function initArPage() {
   // Флаг, чтобы знать, отслеживается ли сейчас маркер (targetFound / targetLost)
   let markerVisible = false;
   // Флаг включённости хит-теста по POI:
-  // по умолчанию false, потому что сначала показываем вводную.
+  // по умолчанию false — сначала пользователь читает вводную.
   let poiTouchEnabled = false;
 
   /**
@@ -251,7 +229,6 @@ function initArPage() {
 
   /**
    * Логика хит-теста: проверяем попадание по экрану вокруг POI.
-   * Никаких дополнительных проверок камеры — ей управляет MindAR.
    * @param {Element[]} poiHits - список .poi-hit (невидимых кругов)
    * @param {Element|null} poiGroup - контейнер с POI
    */
@@ -309,24 +286,24 @@ function initArPage() {
     function handlePointer(evt) {
       if (!poiGroup) return;
 
-      // 1) Если видна вводная панель или панель POI — игнорируем хит-тест,
-      //    чтобы не мешать нажимать на кнопки и закрывать панели.
+      // 1) Если вводная или панель POI видны — игнорируем хит-тест,
+      //    чтобы не мешать нажимать на кнопки.
       const introVisible = introOverlay && !introOverlay.hidden;
       const poiPanelVisible = poiPanel && !poiPanel.hidden;
       if (introVisible || poiPanelVisible) {
         return;
       }
 
-      // 2) Дополнительный флаг: если хит-тест временно выключен — выходим.
+      // 2) Доп. флаг: если хит-тест временно выключен — выходим.
       if (!poiTouchEnabled) return;
 
-      // 3) POI должны быть видимы (т.е. пользователь уже закрыл вводную панель)
+      // 3) POI должны быть видимы (вводная уже закрыта)
       const visibleAttr = poiGroup.getAttribute("visible");
       const groupVisible =
         visibleAttr === true || visibleAttr === "true";
       if (!groupVisible) return;
 
-      // 4) Маркер должен быть отслеживаемым (targetFound уже был и не было targetLost)
+      // 4) Маркер должен быть отслеживаемым
       if (!markerVisible) return;
 
       const isTouch = evt.touches && evt.touches.length;
@@ -410,7 +387,6 @@ function initArPage() {
         if (introOverlay) introOverlay.hidden = true;
         if (poiGroup) poiGroup.setAttribute("visible", "true");
 
-        // Через 1 секунду после закрытия вводной панели включаем трекинг POI
         setTimeout(() => {
           poiTouchEnabled = true;
         }, 1000);
@@ -422,8 +398,7 @@ function initArPage() {
       poiCloseBtn.addEventListener("click", () => {
         if (poiPanel) poiPanel.hidden = true;
 
-        // Включаем хит-тест ПОСЛЕ закрытия панели, с паузой в 1 секунду,
-        // чтобы избежать "повторного" случайного попадания по POI.
+        // Включаем хит-тест ПОСЛЕ закрытия панели, с паузой 1 сек.
         setTimeout(() => {
           poiTouchEnabled = true;
         }, 1000);
