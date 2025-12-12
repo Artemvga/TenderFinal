@@ -1,14 +1,7 @@
 // assets/js/main.js
 
-// ======================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ПРЕДЗАГРУЗКИ РЕСУРСОВ
-// ======================================================
+// ---------- Общие утилиты ----------
 
-/**
- * Простая предзагрузка массива картинок.
- * @param {string[]} urls - список путей к изображениям
- * @returns {Promise<void[]>}
- */
 function preloadImages(urls) {
   const promises = urls.map((url) => {
     return new Promise((resolve) => {
@@ -20,56 +13,31 @@ function preloadImages(urls) {
   return Promise.all(promises);
 }
 
-/**
- * Предзагружаем шрифты, ключевые картинки и targets.mind.
- * Вызываем onProgress, чтобы обновлять прогрессбар на прелоадере.
- * @param {(progress: number, text?: string) => void} onProgress
- */
-async function preloadCoreAssets(onProgress) {
+async function preloadCoreAssets() {
   const images = [
     "assets/png/BG.png",
     "assets/png/Button_BG_Color.png",
-    "assets/png/Button_BG_White.png",
     "assets/png/Button_Back.png",
     "assets/png/POI_Dot.png",
     "assets/png/Banner_ScanPicture.png",
     "assets/png/Paint.png",
   ];
 
-  // 1) ждём шрифты
   const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
 
-  if (onProgress) onProgress(0.15, "Загружаем шрифты…");
-  await fontsReady;
-
-  // 2) грузим изображения
-  if (onProgress) onProgress(0.55, "Загружаем изображения…");
-  await preloadImages(images);
-
-  // 3) пробуем заранее скачать targets.mind (AR-таргет)
-  if (onProgress) onProgress(0.85, "Проверяем AR-данные…");
-  try {
-    await fetch("targets.mind", { cache: "force-cache" });
-  } catch (e) {
-    console.warn("Не удалось предварительно загрузить targets.mind", e);
-  }
-
-  if (onProgress) onProgress(1, "Готово! Запускаем меню…");
+  await Promise.all([preloadImages(images), fontsReady]);
 }
 
-// ======================================================
-// ГЛАВНОЕ МЕНЮ + ЭКРАН ИНСТРУКЦИИ (index.html)
-// ======================================================
+// ---------- Инициализация главного меню ----------
 
 function initMenuPage() {
-  // Если на странице нет главного меню — это не index.html
   const preloader = document.querySelector('[data-screen="preloader"]');
   const menuMain = document.querySelector('[data-screen="menu-main"]');
   const screenInstructions = document.querySelector(
     '[data-screen="menu-instructions"]'
   );
 
-  if (!menuMain) return; // тихо выходим — дальше отработает initArPage
+  if (!menuMain) return; // не та страница
 
   const openInstructionsBtn = document.querySelector(
     '[data-action="open-instructions"]'
@@ -77,101 +45,58 @@ function initMenuPage() {
   const startArBtn = document.querySelector('[data-action="start-ar"]');
   const backToMenuBtn = document.querySelector('[data-action="back-to-menu"]');
 
-  const barFill = document.querySelector(".preloader__bar-fill");
-  const labelEl = document.querySelector("[data-preloader-label]");
-
-  /**
-   * Обновление прогресса на прелоадере.
-   * @param {number} progress 0..1
-   * @param {string} [text]
-   */
-  function updatePreloader(progress, text) {
-    const clamped = Math.max(0, Math.min(progress, 1));
-    if (barFill) {
-      barFill.style.width = `${clamped * 100}%`;
-    }
-    if (labelEl && text) {
-      labelEl.textContent = text;
-    }
-  }
-
-  /**
-   * Переключение между экранами:
-   * - главное меню (menu-main)
-   * - инструкция (menu-instructions)
-   */
   function showScreen(screenToShow) {
-    const screens = [menuMain, screenInstructions];
-    screens.forEach((screen) => {
+    [menuMain, screenInstructions].forEach((screen) => {
       if (!screen) return;
       screen.hidden = screen !== screenToShow;
     });
   }
 
-  // Асинхронный блок: сначала предзагружаем ресурсы, потом показываем меню
+  // Покажем меню после предзагрузки ассетов
   (async () => {
     try {
-      await preloadCoreAssets(updatePreloader);
+      await preloadCoreAssets();
     } catch (e) {
-      console.error("Preload failed", e);
-      // Даже если что-то не загрузилось — всё равно покажем меню
+      // на всякий случай просто продолжаем
+      console.warn("Preload failed", e);
     }
 
-    if (preloader) {
-      preloader.style.display = "none";
-    }
+    if (preloader) preloader.style.display = "none";
     showScreen(menuMain);
   })();
 
-  // Открыть инструкцию
-  if (openInstructionsBtn) {
-    openInstructionsBtn.addEventListener("click", () => {
-      showScreen(screenInstructions);
-    });
-  }
+  openInstructionsBtn?.addEventListener("click", () => {
+    showScreen(screenInstructions);
+  });
 
-  // Назад в меню из инструкции
-  if (backToMenuBtn) {
-    backToMenuBtn.addEventListener("click", () => {
-      showScreen(menuMain);
-    });
-  }
+  backToMenuBtn?.addEventListener("click", () => {
+    showScreen(menuMain);
+  });
 
-  // Переход в AR-сцену
-  if (startArBtn) {
-    startArBtn.addEventListener("click", () => {
-      window.location.href = "ar-scene.html";
-    });
-  }
+  startArBtn?.addEventListener("click", () => {
+    window.location.href = "ar-scene.html";
+  });
 }
 
-// ======================================================
-// AR-СЦЕНА (ar-scene.html)
-// ======================================================
+// ---------- Инициализация AR-сцены ----------
 
 function initArPage() {
-  // Если на странице нет корневого AR-UI — это не ar-scene.html
   const arRoot = document.querySelector("[data-ar-root]");
-  if (!arRoot) return;
+  if (!arRoot) return; // не AR-страница
 
-  // Элементы AR UI
   const exitBtn = document.querySelector('[data-action="exit-to-menu"]');
   const scanOverlay = document.querySelector("[data-ar-scan]");
   const introOverlay = document.querySelector("[data-ar-intro]");
   const introCloseBtn = document.querySelector('[data-action="close-intro"]');
+  const poiContainer = document.querySelector("[data-ar-pois]");
   const poiPanel = document.querySelector("[data-ar-poi-panel]");
   const poiCloseBtn = document.querySelector('[data-action="close-poi"]');
+
   const poiTitleEl = document.querySelector("[data-poi-title]");
   const poiTextEl = document.querySelector("[data-poi-text]");
 
-  // Кнопка выхода слева сверху
-  if (exitBtn) {
-    exitBtn.addEventListener("click", () => {
-      window.location.href = "index.html";
-    });
-  }
+  const poiButtons = Array.from(document.querySelectorAll(".poi"));
 
-  // Контент для трёх точек интереса
   const poiContent = {
     1: {
       title: "Потерянный портрет.",
@@ -206,238 +131,56 @@ function initArPage() {
     },
   };
 
-  // Флаг, чтобы вводная панель показалась только один раз
   let introShown = false;
-  // Флаг, чтобы знать, отслеживается ли сейчас маркер (targetFound / targetLost)
-  let markerVisible = false;
-  // Флаг включённости хит-теста по POI:
-  // по умолчанию false — сначала пользователь читает вводную.
-  let poiTouchEnabled = false;
 
-  /**
-   * Показ панели с содержимым точки интереса.
-   * @param {number} id - 1, 2 или 3
-   */
-  function showPoi(id) {
-    const content = poiContent[id];
-    if (!content) return;
+  exitBtn?.addEventListener("click", () => {
+    window.location.href = "index.html";
+  });
 
-    if (poiTitleEl) poiTitleEl.textContent = content.title;
-    if (poiTextEl) poiTextEl.textContent = content.text;
-    if (poiPanel) poiPanel.hidden = false;
-  }
+  introCloseBtn?.addEventListener("click", () => {
+    if (introOverlay) introOverlay.hidden = true;
+    if (poiContainer) poiContainer.hidden = false;
+  });
 
-  /**
-   * Логика хит-теста: проверяем попадание по экрану вокруг POI.
-   * @param {Element[]} poiHits - список .poi-hit (невидимых кругов)
-   * @param {Element|null} poiGroup - контейнер с POI
-   */
-  function setupPoiTouchHitTest(poiHits, poiGroup) {
-    const sceneEl = document.querySelector("a-scene");
-    if (!sceneEl || !poiHits.length) return;
+  poiCloseBtn?.addEventListener("click", () => {
+    if (poiPanel) poiPanel.hidden = true;
+  });
 
-    // Берём THREE из глобала (A-Frame его поднимает)
-    const THREERef =
-      window.THREE || (window.AFRAME && window.AFRAME.THREE);
-    if (!THREERef) {
-      console.warn("THREE не найден, хит-тест по POI недоступен");
-      return;
-    }
+  poiButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.poi;
+      const content = poiContent[id];
 
-    /**
-     * Вычисляем экранные координаты всех POI (.poi-hit).
-     * @returns {{id:number,x:number,y:number}[]}
-     */
-    function getPoiScreenPositions() {
-      const camera = sceneEl.camera;
-      if (!camera) return [];
-      const w =
-        window.innerWidth || document.documentElement.clientWidth || 1;
-      const h =
-        window.innerHeight || document.documentElement.clientHeight || 1;
+      if (!content) return;
 
-      const results = [];
-
-      poiHits.forEach((hit) => {
-        const idStr = hit.dataset.poi;
-        const id = parseInt(idStr, 10);
-        if (!id || !poiContent[id]) return;
-
-        const worldPos = new THREERef.Vector3();
-        hit.object3D.getWorldPosition(worldPos);
-
-        // Проецируем мировую позицию в NDC (-1..1)
-        worldPos.project(camera);
-
-        // Переводим в пиксели экрана
-        const x = (worldPos.x * 0.5 + 0.5) * w;
-        const y = (-worldPos.y * 0.5 + 0.5) * h;
-
-        results.push({ id, x, y });
-      });
-
-      return results;
-    }
-
-    /**
-     * Обработка клика/тача по экрану: проверяем, попали ли мы
-     * в радиус вокруг одной из точек.
-     */
-    function handlePointer(evt) {
-      if (!poiGroup) return;
-
-      // 1) Если вводная или панель POI видны — игнорируем хит-тест,
-      //    чтобы не мешать нажимать на кнопки.
-      const introVisible = introOverlay && !introOverlay.hidden;
-      const poiPanelVisible = poiPanel && !poiPanel.hidden;
-      if (introVisible || poiPanelVisible) {
-        return;
-      }
-
-      // 2) Доп. флаг: если хит-тест временно выключен — выходим.
-      if (!poiTouchEnabled) return;
-
-      // 3) POI должны быть видимы (вводная уже закрыта)
-      const visibleAttr = poiGroup.getAttribute("visible");
-      const groupVisible =
-        visibleAttr === true || visibleAttr === "true";
-      if (!groupVisible) return;
-
-      // 4) Маркер должен быть отслеживаемым
-      if (!markerVisible) return;
-
-      const isTouch = evt.touches && evt.touches.length;
-      const clientX = isTouch ? evt.touches[0].clientX : evt.clientX;
-      const clientY = isTouch ? evt.touches[0].clientY : evt.clientY;
-      if (clientX == null || clientY == null) return;
-
-      const w =
-        window.innerWidth || document.documentElement.clientWidth || 1;
-      const h =
-        window.innerHeight || document.documentElement.clientHeight || 1;
-
-      // Радиус вокруг точки: 12% от меньшей стороны экрана
-      const radius = Math.min(w, h) * 0.12;
-      const radiusSq = radius * radius;
-
-      const poiScreens = getPoiScreenPositions();
-      let bestId = null;
-      let bestDistSq = Infinity;
-
-      for (const p of poiScreens) {
-        const dx = clientX - p.x;
-        const dy = clientY - p.y;
-        const distSq = dx * dx + dy * dy;
-        if (distSq <= radiusSq && distSq < bestDistSq) {
-          bestDistSq = distSq;
-          bestId = p.id;
-        }
-      }
-
-      if (bestId != null) {
-        // Пользователь попал в POI → показываем панель
-        // и сразу выключаем хит-тест до закрытия панели.
-        poiTouchEnabled = false;
-        showPoi(bestId);
-      }
-    }
-
-    // Слушаем клики мышью и тапы на всём окне
-    window.addEventListener("click", handlePointer);
-    window.addEventListener("touchstart", handlePointer, {
-      passive: true,
+      if (poiTitleEl) poiTitleEl.textContent = content.title;
+      if (poiTextEl) poiTextEl.textContent = content.text;
+      if (poiPanel) poiPanel.hidden = false;
     });
-  }
+  });
 
-  /**
-   * Основная логика AR:
-   * - targetFound → показываем вводную панель
-   * - закрытие вводной → показываем POI + включаем хит-тест через 1 секунду
-   * - хит-тест по экрану вокруг POI → панели с текстом
-   */
-  function setupArLogic() {
-    const targetEntity = document.querySelector("#artwork-target");
-    const poiGroup = document.querySelector("#poi-group");
-    const poiHits = Array.from(document.querySelectorAll(".poi-hit"));
+  // Связка с MindAR: показываем вводную панель при первом распознавании
+  const targetEntity = document.querySelector("#artwork-target");
 
-    // Немного hover-анимации для десктопа (если работает raycaster)
-    poiHits.forEach((hit) => {
-      const wrapper = hit.parentElement;
-      const icon = wrapper
-        ? wrapper.querySelector(".poi-icon")
-        : null;
+  if (targetEntity) {
+    targetEntity.addEventListener("targetFound", () => {
+      if (scanOverlay) scanOverlay.style.display = "none";
 
-      if (!icon) return;
-
-      hit.addEventListener("mouseenter", () => {
-        icon.setAttribute("scale", "1.15 1.15 1.15");
-      });
-      hit.addEventListener("mouseleave", () => {
-        icon.setAttribute("scale", "1 1 1");
-      });
+      if (!introShown && introOverlay) {
+        introOverlay.hidden = false;
+        introShown = true;
+      }
     });
 
-    // Хит-тест по экрану (клик/тап в радиусе вокруг POI)
-    setupPoiTouchHitTest(poiHits, poiGroup);
-
-    // Закрытие вводной панели → включаем POI и
-    // включаем хит-тест ТОЛЬКО через 1 секунду
-    if (introCloseBtn) {
-      introCloseBtn.addEventListener("click", () => {
-        if (introOverlay) introOverlay.hidden = true;
-        if (poiGroup) poiGroup.setAttribute("visible", "true");
-
-        setTimeout(() => {
-          poiTouchEnabled = true;
-        }, 1000);
-      });
-    }
-
-    // Закрытие панели точки интереса
-    if (poiCloseBtn) {
-      poiCloseBtn.addEventListener("click", () => {
-        if (poiPanel) poiPanel.hidden = true;
-
-        // Включаем хит-тест ПОСЛЕ закрытия панели, с паузой 1 сек.
-        setTimeout(() => {
-          poiTouchEnabled = true;
-        }, 1000);
-      });
-    }
-
-    // Реакция на распознавание маркера MindAR
-    if (targetEntity) {
-      targetEntity.addEventListener("targetFound", () => {
-        markerVisible = true;
-
-        // Прячем экран "Сканируем"
-        if (scanOverlay) {
-          scanOverlay.style.display = "none";
-        }
-
-        // Первый раз показываем вводную панель
-        if (!introShown && introOverlay) {
-          introOverlay.hidden = false;
-          introShown = true;
-        }
-      });
-
-      // targetLost: маркер перестали видеть, но панель по ТЗ не закрываем.
-      targetEntity.addEventListener("targetLost", () => {
-        markerVisible = false;
-      });
-    }
+    // ВНИМАНИЕ: по заданию при пропаже метки панель не закрываем,
+    // поэтому на targetLost ничего не делаем.
+    // targetEntity.addEventListener("targetLost", () => {});
   }
-
-  // Только логика AR — камерой полностью управляет MindAR
-  setupArLogic();
 }
 
-// ======================================================
-// ТОЧКА ВХОДА ДЛЯ ОБЕИХ СТРАНИЦ
-// ======================================================
+// ---------- Точка входа ----------
 
 document.addEventListener("DOMContentLoaded", () => {
-  initMenuPage(); // отработает только на index.html
-  initArPage();   // отработает только на ar-scene.html
+  initMenuPage();
+  initArPage();
 });

@@ -5,122 +5,52 @@
   <title>AR-квест «Образы Москвы» — сцена</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <!-- Стили -->
   <link rel="stylesheet" href="assets/css/style.css" />
 
-  <!-- A-Frame и MindAR -->
+  <!-- A-Frame и MindAR (можешь поменять версию при необходимости) -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image-aframe.prod.js"></script>
 
-  <!-- Основной JS -->
   <script src="assets/js/main.js" defer></script>
 </head>
 <body class="page page--ar">
-  <!-- AR-сцена: камера на фоне, UI поверх -->
+  <!-- AR-сцена -->
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: false; uiError: false; uiScanning: false;"
-    color-space="sRGB"
-    renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no;"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: true"
+    renderer="colorManagement: true, physicallyCorrectLights: true"
+    embedded
+    class="ar-scene"
   >
     <a-assets>
-      <!-- превью картины (может быть невидимо, но нужно как референс) -->
       <img id="painting-preview" src="assets/png/Paint.png" />
-      <!-- текстура точки интереса -->
-      <img id="poi-dot" src="assets/png/POI_Dot.png" />
     </a-assets>
 
-    <!-- Камера: не крутим пальцем, всё управление у MindAR -->
-    <a-camera position="0 0 0" look-controls="enabled: false">
-      <!-- Курсор / raycaster для hover на десктопе (не обязателен, но можно оставить) -->
-      <a-entity
-        cursor="fuse: false; rayOrigin: mouse"
-        raycaster="objects: .poi-hit; far: 20; interval: 0.1"
-      ></a-entity>
-    </a-camera>
+    <a-camera position="0 0 0" look-controls="enabled: true"></a-camera>
 
-    <!-- Маркер MindAR -->
+    <!-- Невидимый/полупрозрачный plane, привязанный к маркеру -->
     <a-entity id="artwork-target" mindar-image-target="targetIndex: 0">
-      <!-- Невидимая плоскость картины (1.5 × 1, центр — 0,0) -->
       <a-plane
         src="#painting-preview"
         position="0 0 0"
-        width="1.5"
         height="1"
+        width="1.5"
         material="opacity: 0; transparent: true"
       ></a-plane>
-
-      <!-- Точки интереса: три штуки близко к центру -->
-      <a-entity id="poi-group" visible="false">
-        <!-- POI 1 — слева от центра -->
-        <a-entity class="poi-wrapper" position="-0.25 0.05 0.02">
-          <!-- Видимая маленькая точка -->
-          <a-image
-            class="poi-icon"
-            src="#poi-dot"
-            width="0.06"
-            height="0.06"
-            material="transparent: true; alphaTest: 0.5; depthTest: false;"
-          ></a-image>
-          <!-- Невидимая большая "хит-зона" -->
-          <a-circle
-            class="poi-hit"
-            data-poi="1"
-            radius="0.14"
-            material="opacity: 0; transparent: true; depthTest: false;"
-          ></a-circle>
-        </a-entity>
-
-        <!-- POI 2 — по центру -->
-        <a-entity class="poi-wrapper" position="0 0.05 0.02">
-          <a-image
-            class="poi-icon"
-            src="#poi-dot"
-            width="0.06"
-            height="0.06"
-            material="transparent: true; alphaTest: 0.5; depthTest: false;"
-          ></a-image>
-          <a-circle
-            class="poi-hit"
-            data-poi="2"
-            radius="0.14"
-            material="opacity: 0; transparent: true; depthTest: false;"
-          ></a-circle>
-        </a-entity>
-
-        <!-- POI 3 — справа от центра -->
-        <a-entity class="poi-wrapper" position="0.25 0.05 0.02">
-          <a-image
-            class="poi-icon"
-            src="#poi-dot"
-            width="0.06"
-            height="0.06"
-            material="transparent: true; alphaTest: 0.5; depthTest: false;"
-          ></a-image>
-          <a-circle
-            class="poi-hit"
-            data-poi="3"
-            radius="0.14"
-            material="opacity: 0; transparent: true; depthTest: false;"
-          ></a-circle>
-        </a-entity>
-      </a-entity>
     </a-entity>
   </a-scene>
 
-  <!-- UI поверх AR -->
+  <!-- UI-слой -->
   <div class="ar-ui" data-ar-root>
-    <!-- Большая квадратная кнопка выхода -->
+    <!-- Кнопка выхода слева сверху -->
     <div class="ar-topbar safe-area-top">
-      <button
-        class="btn-back"
-        data-action="exit-to-menu"
-        aria-label="Выйти в меню"
-      ></button>
+      <button class="btn-back" data-action="exit-to-menu">
+        Выйти
+      </button>
     </div>
 
-    <!-- Экран "Сканируем" при заходе -->
+    <!-- Экран «Сканируем» при заходе в сцену -->
     <div class="ar-overlay ar-overlay--scan" data-ar-scan>
       <div class="ar-overlay__inner">
         <img
@@ -128,7 +58,7 @@
           alt="Сканирование"
           class="ar-overlay__image"
         />
-        <p class="ar-overlay__text" data-scan-text>
+        <p class="ar-overlay__text">
           Наведите камеру на картину, чтобы начать.
         </p>
       </div>
@@ -156,7 +86,7 @@
       </div>
     </div>
 
-    <!-- Панель точки интереса (контент подставляется из JS) -->
+    <!-- Панель точки интереса (контент меняется из JS) -->
     <div class="ar-overlay ar-overlay--panel" data-ar-poi-panel hidden>
       <div class="panel">
         <h2 class="panel__title" data-poi-title></h2>
@@ -166,6 +96,13 @@
           Закрыть
         </button>
       </div>
+    </div>
+
+    <!-- Три точки интереса, появляются после закрытия вводной панели -->
+    <div class="ar-pois safe-area-bottom" data-ar-pois hidden>
+      <button class="poi" data-poi="1" aria-label="Точка интереса 1"></button>
+      <button class="poi" data-poi="2" aria-label="Точка интереса 2"></button>
+      <button class="poi" data-poi="3" aria-label="Точка интереса 3"></button>
     </div>
   </div>
 </body>

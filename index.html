@@ -8,59 +8,42 @@
   <!-- Основные стили -->
   <link rel="stylesheet" href="assets/css/style.css" />
 
-  <!-- Предзагрузка ключевых картинок -->
+  <!-- Небольшое предварительное подгружание важных картинок -->
   <link rel="preload" as="image" href="assets/png/BG.png" />
   <link rel="preload" as="image" href="assets/png/Button_BG_Color.png" />
-  <link rel="preload" as="image" href="assets/png/Button_BG_White.png" />
   <link rel="preload" as="image" href="assets/png/Banner_ScanPicture.png" />
 
-  <!-- Основной JS -->
   <script src="assets/js/main.js" defer></script>
 </head>
 <body class="page page--menu">
-  <!-- Фон главного экрана -->
+  <!-- Фон -->
   <div class="page-bg">
     <img src="assets/png/BG.png" alt="" class="page-bg__image" />
     <div class="page-bg__overlay"></div>
   </div>
 
-  <!-- ЭКРАН ЗАГРУЗКИ -->
+  <!-- Прелоадер перед показом меню -->
   <div class="preloader" data-screen="preloader">
     <div class="preloader__content">
-      <div class="preloader__logo">
-        <span class="preloader__tagline">AR-квест</span>
-        <span class="preloader__title">«Образы Москвы»</span>
-      </div>
-
-      <div class="preloader__spinner"></div>
-
-      <div class="preloader__bar">
-        <div class="preloader__bar-fill"></div>
-      </div>
-
-      <p class="preloader__label" data-preloader-label>
-        Подготавливаем ресурсы…
-      </p>
+      <img src="assets/png/Banner_ScanPicture.png" alt="Загрузка" class="preloader__image" />
+      <p class="preloader__label">Загружаем AR-квест…</p>
     </div>
   </div>
 
-  <!-- ГЛАВНОЕ МЕНЮ -->
   <main class="menu" data-screen="menu-main" hidden>
     <section class="menu-card">
       <p class="menu-kicker">AR-квест</p>
       <h1 class="menu-title">«Образы Москвы»</h1>
 
-      <p class="menu-text">
+      <p class_name="menu-text">
         Погрузитесь в атмосферу старой и современной Москвы сквозь шедевры
         русских художников.
       </p>
 
       <div class="menu-actions">
-        <!-- Белая кнопка инструкции (PNG Button_BG_White, чёрный текст) -->
-        <button class="btn btn--light" data-action="open-instructions">
+        <button class="btn btn--primary" data-action="open-instructions">
           Смотреть инструкцию
         </button>
-        <!-- Цветная кнопка AR (PNG Button_BG_Color) -->
         <button class="btn btn--primary" data-action="start-ar">
           Сканировать картины
         </button>
@@ -68,7 +51,7 @@
     </section>
   </main>
 
-  <!-- ЭКРАН ИНСТРУКЦИИ -->
+  <!-- Экран инструкции -->
   <main class="screen screen--instructions" data-screen="menu-instructions" hidden>
     <section class="screen-card">
       <header class="screen-header">
