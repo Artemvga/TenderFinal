@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <title>AR-квест «Образы Москвы» — сцена</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <!-- Стили -->
   <link rel="stylesheet" href="assets/css/style.css" />
@@ -12,27 +15,146 @@
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image-aframe.prod.js"></script>
 
+  <style>
+    /* Дополнительные стили для фикса камеры */
+    body.page--ar {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .camera-error {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.95);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .camera-error.active {
+      display: flex;
+    }
+
+    .camera-error__content {
+      max-width: 400px;
+      color: white;
+    }
+
+    .camera-error__title {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 12px;
+    }
+
+    .camera-error__text {
+      font-size: 14px;
+      line-height: 1.5;
+      opacity: 0.9;
+      margin: 0 0 20px;
+    }
+  </style>
+
   <!-- Основной JS -->
   <script src="assets/js/main.js" defer></script>
+  
+  <!-- Скрипт для инициализации камеры -->
+  <script>
+    // Проверка и запрос разрешений камеры перед загрузкой сцены
+    document.addEventListener('DOMContentLoaded', async () => {
+      const errorOverlay = document.querySelector('.camera-error');
+      const retryBtn = document.querySelector('.camera-error__retry');
+      
+      async function requestCameraPermission() {
+        try {
+          // Проверяем доступность API
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Camera API not supported');
+          }
+
+          // Запрашиваем разрешение на камеру
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            } 
+          });
+          
+          // Останавливаем поток - мы просто проверяли разрешение
+          stream.getTracks().forEach(track => track.stop());
+          
+          return true;
+        } catch (err) {
+          console.error('Camera permission error:', err);
+          return false;
+        }
+      }
+
+      // Пытаемся получить доступ к камере
+      const hasPermission = await requestCameraPermission();
+      
+      if (!hasPermission) {
+        if (errorOverlay) {
+          errorOverlay.classList.add('active');
+        }
+      }
+
+      // Обработчик повторной попытки
+      if (retryBtn) {
+        retryBtn.addEventListener('click', async () => {
+          const retry = await requestCameraPermission();
+          if (retry && errorOverlay) {
+            errorOverlay.classList.remove('active');
+            // Перезагружаем страницу для инициализации MindAR
+            window.location.reload();
+          }
+        });
+      }
+    });
+  </script>
 </head>
 <body class="page page--ar">
+  <!-- Сообщение об ошибке камеры -->
+  <div class="camera-error">
+    <div class="camera-error__content">
+      <h2 class="camera-error__title">Нет доступа к камере</h2>
+      <p class="camera-error__text">
+        Для работы AR необходим доступ к камере. Пожалуйста, разрешите доступ к камере в настройках браузера и попробуйте снова.
+      </p>
+      <button class="btn btn--primary camera-error__retry">
+        Попробовать снова
+      </button>
+      <button class="btn btn--light" onclick="window.location.href='index.html'" style="margin-top: 12px;">
+        Вернуться в меню
+      </button>
+    </div>
+  </div>
+
   <!-- AR-сцена: камера на фоне, UI поверх -->
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: false; uiError: false; uiScanning: false;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.001;"
     color-space="sRGB"
-    renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true"
+    renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true; antialias: true; precision: medium;"
     vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: true"
+    device-orientation-permission-ui="enabled: false"
+    embedded
+    loading-screen="enabled: false"
   >
     <a-assets>
       <!-- превью картины (может быть невидимо, но нужно как референс) -->
-      <img id="painting-preview" src="assets/png/Paint.png" />
+      <img id="painting-preview" src="assets/png/Paint.png" crossorigin="anonymous" />
       <!-- текстура точки интереса -->
-      <img id="poi-dot" src="assets/png/POI_Dot.png" />
+      <img id="poi-dot" src="assets/png/POI_Dot.png" crossorigin="anonymous" />
     </a-assets>
 
     <!-- Камера: не крутим пальцем, всё управление у MindAR -->
-    <a-camera position="0 0 0" look-controls="enabled: false">
+    <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false">
       <!-- Курсор / raycaster для hover на десктопе (не обязателен, но можно оставить) -->
       <a-entity
         cursor="fuse: false; rayOrigin: mouse"
@@ -168,5 +290,39 @@
       </div>
     </div>
   </div>
+
+  <script>
+    // Дополнительная инициализация MindAR после загрузки сцены
+    document.addEventListener('DOMContentLoaded', () => {
+      const sceneEl = document.querySelector('a-scene');
+      
+      if (sceneEl) {
+        sceneEl.addEventListener('loaded', () => {
+          console.log('A-Frame scene loaded');
+          
+          // Запускаем MindAR через небольшую задержку
+          setTimeout(() => {
+            const mindARSystem = sceneEl.systems['mindar-image-system'];
+            if (mindARSystem) {
+              mindARSystem.start().then(() => {
+                console.log('MindAR started successfully');
+              }).catch(err => {
+                console.error('MindAR start error:', err);
+                const errorOverlay = document.querySelector('.camera-error');
+                if (errorOverlay) {
+                  errorOverlay.classList.add('active');
+                }
+              });
+            }
+          }, 500);
+        });
+
+        // Обработка ошибок рендеринга
+        sceneEl.addEventListener('renderstart', () => {
+          console.log('Rendering started');
+        });
+      }
+    });
+  </script>
 </body>
 </html>
