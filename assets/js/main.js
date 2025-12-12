@@ -232,6 +232,9 @@ function initArPage() {
   let introShown = false;
   // Флаг, чтобы знать, отслеживается ли сейчас маркер (targetFound / targetLost)
   let markerVisible = false;
+  // Флаг включённости хит-теста по POI:
+  // по умолчанию false, потому что сначала показываем вводную.
+  let poiTouchEnabled = false;
 
   /**
    * Показ панели с содержимым точки интереса.
@@ -314,13 +317,16 @@ function initArPage() {
         return;
       }
 
-      // 2) POI должны быть видимы (т.е. пользователь уже закрыл вводную панель)
+      // 2) Дополнительный флаг: если хит-тест временно выключен — выходим.
+      if (!poiTouchEnabled) return;
+
+      // 3) POI должны быть видимы (т.е. пользователь уже закрыл вводную панель)
       const visibleAttr = poiGroup.getAttribute("visible");
       const groupVisible =
         visibleAttr === true || visibleAttr === "true";
       if (!groupVisible) return;
 
-      // 3) Маркер должен быть отслеживаемым (targetFound уже был и не было targetLost)
+      // 4) Маркер должен быть отслеживаемым (targetFound уже был и не было targetLost)
       if (!markerVisible) return;
 
       const isTouch = evt.touches && evt.touches.length;
@@ -352,6 +358,9 @@ function initArPage() {
       }
 
       if (bestId != null) {
+        // Пользователь попал в POI → показываем панель
+        // и сразу выключаем хит-тест до закрытия панели.
+        poiTouchEnabled = false;
         showPoi(bestId);
       }
     }
@@ -366,7 +375,7 @@ function initArPage() {
   /**
    * Основная логика AR:
    * - targetFound → показываем вводную панель
-   * - закрытие вводной → показываем POI
+   * - закрытие вводной → показываем POI + включаем хит-тест через 1 секунду
    * - хит-тест по экрану вокруг POI → панели с текстом
    */
   function setupArLogic() {
@@ -394,11 +403,17 @@ function initArPage() {
     // Хит-тест по экрану (клик/тап в радиусе вокруг POI)
     setupPoiTouchHitTest(poiHits, poiGroup);
 
-    // Закрытие вводной панели → включаем POI
+    // Закрытие вводной панели → включаем POI и
+    // включаем хит-тест ТОЛЬКО через 1 секунду
     if (introCloseBtn) {
       introCloseBtn.addEventListener("click", () => {
         if (introOverlay) introOverlay.hidden = true;
         if (poiGroup) poiGroup.setAttribute("visible", "true");
+
+        // Через 1 секунду после закрытия вводной панели включаем трекинг POI
+        setTimeout(() => {
+          poiTouchEnabled = true;
+        }, 1000);
       });
     }
 
@@ -406,6 +421,12 @@ function initArPage() {
     if (poiCloseBtn) {
       poiCloseBtn.addEventListener("click", () => {
         if (poiPanel) poiPanel.hidden = true;
+
+        // Включаем хит-тест ПОСЛЕ закрытия панели, с паузой в 1 секунду,
+        // чтобы избежать "повторного" случайного попадания по POI.
+        setTimeout(() => {
+          poiTouchEnabled = true;
+        }, 1000);
       });
     }
 
