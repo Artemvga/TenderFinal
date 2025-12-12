@@ -290,8 +290,6 @@ button {
   box-sizing: border-box;
   -webkit-appearance: none;
   appearance: none;
-  /* убираем задержку клика/двойной тап-зум на мобилках */
-  touch-action: manipulation;
 }
 
 .btn--primary {
@@ -315,14 +313,6 @@ button {
 .btn:active {
   transform: translateY(1px);
   opacity: 0.9;
-}
-
-/* disabled (нужно для "Загрузка AR…" / запроса камеры) */
-.btn:disabled,
-.btn[disabled] {
-  opacity: 0.55;
-  cursor: not-allowed;
-  transform: none;
 }
 
 /* =========================================
@@ -456,13 +446,8 @@ button {
   width: 100vw !important;
   height: calc(var(--vh, 1vh) * 100) !important;
   object-fit: cover;
-  z-index: 0;          /* видео будет ниже канваса */
+  z-index: 0;          /* было -1 */
   pointer-events: none;
-}
-
-/* Канвас A-Frame — поверх видео, иначе AR-объекты могут не быть видны */
-.page--ar canvas.a-canvas {
-  z-index: 1;
 }
 
 .ar-ui {
@@ -490,7 +475,6 @@ button {
 .btn-back {
   pointer-events: auto;
   border: none;
-  touch-action: manipulation;
   width: 72px;
   height: 72px;
   border-radius: 16px;
@@ -648,5 +632,64 @@ button {
 
   .panel__text {
     font-size: 13px;
+  }
+}
+
+/* =========================================
+   FIX: убрать чёрные полосы (full-bleed камера на мобилках)
+   ========================================= */
+
+/* На современных браузерах лучше использовать динамические единицы viewport */
+@supports (height: 100dvh) {
+  .page--ar a-scene {
+    inset: 0;
+    width: 100dvw;
+    height: 100dvh;
+  }
+
+  .page--ar canvas.a-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100dvw !important;
+    height: 100dvh !important;
+  }
+
+  /* Центрируем видеопоток и растягиваем "cover", чтобы не было полос справа/слева */
+  .page--ar video {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 100dvw !important;
+    height: 100dvh !important;
+    transform: translate(-50%, -50%) !important;
+    object-fit: cover !important;
+    object-position: center center !important;
+  }
+}
+
+/* Фоллбэк для браузеров без dvh/dvw */
+@supports not (height: 100dvh) {
+  .page--ar a-scene {
+    inset: 0;
+    width: 100vw;
+    height: calc(var(--vh, 1vh) * 100);
+  }
+
+  .page--ar canvas.a-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw !important;
+    height: calc(var(--vh, 1vh) * 100) !important;
+  }
+
+  .page--ar video {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 100vw !important;
+    height: calc(var(--vh, 1vh) * 100) !important;
+    transform: translate(-50%, -50%) !important;
+    object-fit: cover !important;
+    object-position: center center !important;
   }
 }
