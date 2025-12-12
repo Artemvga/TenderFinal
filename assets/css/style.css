@@ -45,11 +45,6 @@
   --radius-pill: 999px;
   --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.35);
 
-  /* 1% от реальной высоты видимой области.
-     JS в main.js обновляет это значение, чтобы iPhone/Safari корректно
-     рассчитывал «100vh» (без прыгающей адресной строки). */
-  --vh: 1vh;
-
   --font-heading: "InterTight", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   --font-body: "InterTight", system-ui, -apple-system, BlinkMacSystemFont,
@@ -96,7 +91,7 @@ button {
 
 .page {
   position: relative;
-  min-height: calc(var(--vh, 1vh) * 100);
+  min-height: 100vh;
 }
 
 /* =========================================
@@ -315,13 +310,19 @@ button {
   opacity: 0.9;
 }
 
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* =========================================
    ЭКРАН ИНСТРУКЦИИ
    ========================================= */
 
 .screen {
   position: relative;
-  min-height: calc(var(--vh, 1vh) * 100);
+  min-height: 100vh;
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -360,7 +361,7 @@ button {
   margin-top: 8px;
   margin-bottom: 12px;
   overflow: auto;
-  max-height: calc(var(--vh, 1vh) * 100 - 200px);
+  max-height: calc(100vh - 200px);
   padding-right: 4px;
 }
 
@@ -430,7 +431,7 @@ button {
   top: 0;
   left: 0;
   width: 100vw;
-  height: calc(var(--vh, 1vh) * 100);
+  height: 100vh;
 }
 
 /* Видео и WebGL-канвас — растянуть полностью */
@@ -444,7 +445,7 @@ button {
   top: 0;
   left: 0;
   width: 100vw !important;
-  height: calc(var(--vh, 1vh) * 100) !important;
+  height: 100vh !important;
   object-fit: cover;
   z-index: 0;          /* было -1 */
   pointer-events: none;
@@ -545,7 +546,7 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.18);
   max-width: 540px;
   width: 100%;
-  max-height: calc(var(--vh, 1vh) * 100 - 40px);
+  max-height: calc(100vh - 40px);
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(16px);
 
@@ -622,7 +623,7 @@ button {
 
   .panel {
     max-width: 420px;
-    max-height: calc(var(--vh, 1vh) * 100 - 24px);
+    max-height: calc(100vh - 24px);
     padding: 14px 14px 10px;
   }
 

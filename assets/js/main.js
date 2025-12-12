@@ -1,97 +1,6 @@
 // assets/js/main.js
 
 // ======================================================
-// DEVICE SPLIT (iOS Safari / Android Chrome & Yandex)
-// + FIX 100vh ON MOBILE SAFARI (address bar / safe-area)
-// ======================================================
-
-/**
- * Определяем платформу/браузер и выставляем классы на <html>.
- * Это даёт «разделение на устройства» (для CSS/логики).
- */
-function getDeviceInfo() {
-  const ua = navigator.userAgent || "";
-  const platform = navigator.platform || "";
-  const maxTouchPoints = navigator.maxTouchPoints || 0;
-
-  // iPadOS часто маскируется под Mac
-  const isIpadOS = platform === "MacIntel" && maxTouchPoints > 1;
-  const isIOS = isIpadOS || /iPad|iPhone|iPod/i.test(ua);
-  const isAndroid = /Android/i.test(ua);
-
-  const isYandex = /YaBrowser/i.test(ua);
-  const isEdge = /Edg/i.test(ua);
-  const isOpera = /OPR|Opera/i.test(ua);
-  const isFirefox = /Firefox|FxiOS/i.test(ua);
-
-  // Chrome на iOS называется CriOS и всегда содержит Safari в UA
-  const isChrome =
-    (/Chrome|CriOS|Chromium/i.test(ua) && !isEdge && !isOpera && !isYandex) ||
-    false;
-  const isSafari =
-    /Safari/i.test(ua) &&
-    !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/i.test(ua) &&
-    !isAndroid;
-
-  // Частые in-app браузеры (там камера может быть ограничена)
-  const isInApp =
-    /Instagram/i.test(ua) ||
-    /FBAN|FBAV/i.test(ua) ||
-    /Telegram/i.test(ua) ||
-    /TikTok/i.test(ua) ||
-    /VKClient|VKA/i.test(ua);
-
-  return {
-    ua,
-    isIOS,
-    isAndroid,
-    isSafari,
-    isChrome,
-    isYandex,
-    isInApp,
-  };
-}
-
-function applyDeviceClasses() {
-  const info = getDeviceInfo();
-  const root = document.documentElement;
-
-  root.classList.toggle("is-ios", !!info.isIOS);
-  root.classList.toggle("is-android", !!info.isAndroid);
-  root.classList.toggle("is-safari", !!info.isSafari);
-  root.classList.toggle("is-chrome", !!info.isChrome);
-  root.classList.toggle("is-yandex", !!info.isYandex);
-  root.classList.toggle("is-inapp", !!info.isInApp);
-
-  root.dataset.os = info.isIOS ? "ios" : info.isAndroid ? "android" : "other";
-  root.dataset.browser = info.isSafari
-    ? "safari"
-    : info.isYandex
-    ? "yandex"
-    : info.isChrome
-    ? "chrome"
-    : "other";
-
-  // Чтобы можно было использовать и в других скриптах (например, ar-scene.html)
-  window.__DEVICE_INFO__ = info;
-  return info;
-}
-
-/**
- * Фикс «100vh» для мобильного Safari (и не только):
- * создаём CSS-переменную --vh, равную 1% реальной видимой высоты.
- */
-function updateViewportUnits() {
-  const root = document.documentElement;
-  const viewportHeight =
-    (window.visualViewport && window.visualViewport.height) ||
-    window.innerHeight ||
-    0;
-  if (!viewportHeight) return;
-  root.style.setProperty("--vh", `${viewportHeight * 0.01}px`);
-}
-
-// ======================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ПРЕДЗАГРУЗКИ РЕСУРСОВ
 // ======================================================
 
@@ -433,15 +342,11 @@ function initArPage() {
       }
     }
 
-    // Слушаем клики/тапы на всём окне.
-    // Pointer Events работают и на iPhone (Safari) и на Android (Chrome/Яндекс) —
-    // это самый ровный кросс-платформенный вариант.
-    if (window.PointerEvent) {
-      window.addEventListener("pointerdown", handlePointer, { passive: true });
-    } else {
-      window.addEventListener("click", handlePointer);
-      window.addEventListener("touchstart", handlePointer, { passive: true });
-    }
+    // Слушаем клики мышью и тапы на всём окне
+    window.addEventListener("click", handlePointer);
+    window.addEventListener("touchstart", handlePointer, {
+      passive: true,
+    });
   }
 
   /**
@@ -533,22 +438,6 @@ function initArPage() {
 // ======================================================
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 1) Добавляем классы под устройство/браузер (для CSS и условий в JS)
-  applyDeviceClasses();
-
-  // 2) Фиксим высоту «100vh» (особенно важно для iPhone/Safari)
-  updateViewportUnits();
-  window.addEventListener("resize", updateViewportUnits, { passive: true });
-  window.addEventListener("orientationchange", updateViewportUnits, {
-    passive: true,
-  });
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", updateViewportUnits, {
-      passive: true,
-    });
-  }
-  window.addEventListener("pageshow", updateViewportUnits);
-
   initMenuPage(); // отработает только на index.html
   initArPage();   // отработает только на ar-scene.html
 });

@@ -11,9 +11,14 @@
   <!-- Стили -->
   <link rel="stylesheet" href="assets/css/style.css" />
 
-  <!-- A-Frame и MindAR -->
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <!-- Быстрый старт загрузки targets.mind (ускоряет на слабых устройствах) -->
+  <link rel="preload" as="fetch" href="targets.mind" crossorigin />
+  <link rel="preconnect" href="https://aframe.io" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+
+  <!-- A-Frame и MindAR (одна версия, без дублей) -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js" defer></script>
 
   <!-- Основной JS -->
   <script src="assets/js/main.js" defer></script>
@@ -23,10 +28,9 @@
     body.page--ar {
       position: fixed;
       width: 100%;
-      height: calc(var(--vh, 1vh) * 100);
+      height: 100%;
       overflow: hidden;
       -webkit-overflow-scrolling: touch;
-      overscroll-behavior: none;
     }
 
     .camera-error {
@@ -103,7 +107,7 @@
   <div class="camera-permission-prompt" id="cameraPermissionPrompt">
     <div class="camera-permission-prompt__content">
       <h2 class="camera-permission-prompt__title">Доступ к камере</h2>
-      <p class="camera-permission-prompt__text">
+      <p class="camera-permission-prompt__text" id="cameraPermissionText">
         Для работы AR-квеста необходим доступ к камере вашего устройства.
         Нажмите "Разрешить", чтобы начать сканирование картин.
       </p>
@@ -134,9 +138,9 @@
 
   <!-- AR-сцена: камера на фоне, UI поверх -->
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.001;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
     color-space="sRGB"
-    renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true; antialias: true; precision: medium;"
+    renderer="alpha: true; antialias: false; precision: low;"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
     embedded
@@ -279,13 +283,11 @@
     </div>
   </div>
 
-  
   <script>
-    // Камера / AR: iOS (Safari) и Android (Chrome/Яндекс)
-    // Важно: чтобы камера стабильно стартовала на iOS, запуск MindAR (arSystem.start)
-    // должен происходить ПРЯМО в обработчике клика, без await до него.
+    // Лёгкий и надёжный запуск MindAR на мобильных (особенно на слабых устройствах)
     document.addEventListener('DOMContentLoaded', () => {
       const permissionPrompt = document.getElementById('cameraPermissionPrompt');
+      const permissionText = document.getElementById('cameraPermissionText');
       const cameraError = document.getElementById('cameraError');
       const cameraErrorText = document.getElementById('cameraErrorText');
       const requestCameraBtn = document.getElementById('requestCameraBtn');
@@ -293,31 +295,26 @@
       const scanOverlay = document.querySelector('[data-ar-scan]');
       const sceneEl = document.querySelector('a-scene');
 
-      // --- Детект устройства/браузера (минимальный) ---
-      const ua = navigator.userAgent || '';
-      const platform = navigator.platform || '';
-      const maxTouchPoints = navigator.maxTouchPoints || 0;
+      let mindARSystem = null;
+      let engineReady = false;
+      let starting = false;
 
-      const isIpadOS = platform === 'MacIntel' && maxTouchPoints > 1;
-      const isIOS = isIpadOS || /iPad|iPhone|iPod/i.test(ua);
-      const isAndroid = /Android/i.test(ua);
-      const isYandex = /YaBrowser/i.test(ua);
-      const isChrome = (/Chrome|CriOS|Chromium/i.test(ua) && !isYandex && !/Edg|OPR/i.test(ua));
-      const isSafari = (/Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/i.test(ua) && !isAndroid);
-      const isInApp = /Instagram|FBAN|FBAV|TikTok|VKClient|VKA/i.test(ua);
-
-      // Подсказка под ОС
-      const promptTextEl = permissionPrompt
-        ? permissionPrompt.querySelector('.camera-permission-prompt__text')
-        : null;
-      if (promptTextEl) {
-        if (isIOS) {
-          promptTextEl.textContent =
-            'Для работы AR нужен доступ к камере. На iPhone используйте Safari. Нажмите «Разрешить», чтобы начать.';
-        } else if (isAndroid) {
-          promptTextEl.textContent =
-            'Для работы AR нужен доступ к камере. На Android используйте Chrome или Яндекс Браузер. Нажмите «Разрешить», чтобы начать.';
+      function checkHTTPS() {
+        const ok = (window.location.protocol === 'https:') ||
+                   (window.location.hostname === 'localhost') ||
+                   (window.location.hostname === '127.0.0.1');
+        if (!ok) {
+          showCameraError('Для работы AR-квеста нужен HTTPS. Откройте сайт по https://');
         }
+        return ok;
+      }
+
+      function checkCameraSupport() {
+        const ok = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        if (!ok) {
+          showCameraError('Этот браузер не поддерживает доступ к камере (getUserMedia). Откройте в Safari / Chrome.');
+        }
+        return ok;
       }
 
       function showCameraError(message) {
@@ -325,221 +322,137 @@
         if (permissionPrompt) permissionPrompt.classList.add('hidden');
         if (cameraError) cameraError.classList.add('active');
         if (scanOverlay) scanOverlay.style.display = 'none';
-        setButtonsEnabled(true);
       }
 
-      function setButtonsEnabled(enabled) {
-        const btns = [requestCameraBtn, retryCameraBtn].filter(Boolean);
-        btns.forEach((b) => {
-          b.disabled = !enabled;
-          b.style.opacity = enabled ? '1' : '0.7';
-          b.style.pointerEvents = enabled ? 'auto' : 'none';
-        });
-      }
-
-      // Проверяем HTTPS (обязательно для камеры)
-      function checkHTTPS() {
-        const isLocalhost =
-          window.location.hostname === 'localhost' ||
-          window.location.hostname === '127.0.0.1';
-        if (window.location.protocol !== 'https:' && !isLocalhost) {
-          showCameraError(
-            'Для работы AR необходим HTTPS. Откройте сайт по https:// (или тестируйте на localhost).'
-          );
-          return false;
-        }
-        return true;
-      }
-
-      // Проверяем поддержку камеры
-      function checkCameraSupport() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          showCameraError(
-            'Браузер не поддерживает доступ к камере. На iPhone — Safari, на Android — Chrome/Яндекс.'
-          );
-          return false;
-        }
-        return true;
-      }
-
-      // Встроенные браузеры часто ломают WebRTC/камеру
-      function checkInAppBrowser() {
-        if (!isInApp) return true;
-        if (isIOS) {
-          showCameraError(
-            'Похоже, ссылка открыта во встроенном браузере приложения. На iPhone откройте в Safari («Поделиться» → «Открыть в Safari»).'
-          );
-        } else if (isAndroid) {
-          showCameraError(
-            'Похоже, ссылка открыта во встроенном браузере приложения. На Android откройте в Chrome или Яндекс Браузере (меню → «Открыть в браузере»).'
-          );
-        } else {
-          showCameraError(
-            'Откройте ссылку во внешнем браузере и попробуйте снова.'
-          );
-        }
-        return false;
-      }
-
-      // iOS Safari: иногда важно принудительно поставить playsinline на video
-      function ensureVideoInline() {
-        const video = document.querySelector('video');
-        if (!video) return false;
-        try {
-          video.setAttribute('playsinline', '');
-          video.setAttribute('webkit-playsinline', '');
-          video.muted = true;
-          video.autoplay = true;
-        } catch (e) {
-          // ignore
-        }
-        return true;
-      }
-      // Попробуем сразу и через observer, когда MindAR добавит <video>
-      ensureVideoInline();
-      const mo = new MutationObserver(() => {
-        if (ensureVideoInline()) mo.disconnect();
-      });
-      mo.observe(document.documentElement, { childList: true, subtree: true });
-
-      // Prefetch targets.mind (чтобы MindAR меньше делал работы в момент клика)
-      try {
-        fetch('./targets.mind', { cache: 'force-cache' }).catch(() => {});
-      } catch (e) {}
-
-      let arSystem = null;
-
-      // Готовим arSystem заранее и включаем кнопку только когда сцена готова
-      function bindArSystem() {
-        if (!sceneEl) {
-          showCameraError('Не найдена AR-сцена. Проверьте ar-scene.html и обновите страницу.');
-          return;
-        }
-        arSystem = sceneEl.systems && sceneEl.systems['mindar-image-system'];
-        if (!arSystem) {
-          // Иногда нужно подождать пару тиков после loaded
-          setTimeout(() => {
-            arSystem = sceneEl.systems && sceneEl.systems['mindar-image-system'];
-            setButtonsEnabled(!!arSystem);
-          }, 0);
-        } else {
-          setButtonsEnabled(true);
-        }
-      }
-
-      // arReady / arError — управляем UI
-      if (sceneEl) {
-        sceneEl.addEventListener('arReady', () => {
-          // Камера запущена, движок готов
-          if (scanOverlay) scanOverlay.style.display = 'flex';
-        });
-        sceneEl.addEventListener('arError', () => {
-          // Обычно это «камера не стартанула / несовместимый браузер»
-          showCameraError(
-            isIOS
-              ? 'MindAR не смог запустить камеру. Проверьте: 1) сайт открыт в Safari, 2) доступ к камере разрешён, 3) https://, 4) не встроенный браузер.'
-              : 'MindAR не смог запустить камеру. Проверьте доступ к камере и попробуйте Chrome/Яндекс.'
-          );
-        });
-      }
-
-      // ВАЖНО: start вызываем синхронно в клике (без await перед start)
-      function startARFromClick() {
-        // Базовые проверки
-        if (!checkHTTPS() || !checkCameraSupport() || !checkInAppBrowser()) return;
-
-        // Подсказки по браузеру
-        if (isIOS && !isSafari) {
-          console.warn('iOS: для стабильной камеры используйте Safari.');
-        }
-        if (isAndroid && !(isChrome || isYandex)) {
-          console.warn('Android: рекомендуем Chrome или Яндекс Браузер.');
-        }
-
-        if (!arSystem) {
-          // Если сцена еще не готова — НЕ пытаемся стартовать (иначе потеряем «жест»)
-          showCameraError('AR ещё загружается. Подождите 1–2 секунды и нажмите «Разрешить» ещё раз.');
-          return;
-        }
-
-        // UI
-        if (permissionPrompt) permissionPrompt.classList.add('hidden');
+      function hideCameraError() {
         if (cameraError) cameraError.classList.remove('active');
-        if (scanOverlay) scanOverlay.style.display = 'flex';
-        setButtonsEnabled(false);
+      }
 
-        // Стартуем MindAR
+      function setStartButtonState({ disabled, label, text }) {
+        if (requestCameraBtn) {
+          requestCameraBtn.disabled = !!disabled;
+          if (label) requestCameraBtn.textContent = label;
+        }
+        if (permissionText && text) {
+          permissionText.textContent = text;
+        }
+      }
+
+      function stopAR() {
         try {
-          const p = arSystem.start();
-          if (p && typeof p.catch === 'function') {
-            p.catch((err) => {
-              console.error('MindAR start() rejected:', err);
-              const name = (err && err.name) || '';
-              if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-                showCameraError('Доступ к камере запрещён. Разрешите камеру для Safari и перезагрузите страницу.');
-              } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-                showCameraError('Камера занята другим приложением. Закройте приложения, использующие камеру, и попробуйте снова.');
-              } else {
-                showCameraError('Не удалось запустить камеру. Попробуйте снова или откройте в другом браузере.');
-              }
-            });
+          if (mindARSystem && mindARSystem.sessionRunning) {
+            const p = mindARSystem.stop();
+            // stop() может вернуть Promise, но нам не важно дожидаться
+            if (p && typeof p.catch === 'function') p.catch(() => {});
           }
-        } catch (err) {
-          console.error('MindAR start() error:', err);
-          showCameraError('Не удалось запустить AR. Попробуйте обновить страницу.');
+        } catch (e) {
+          // тихо
         }
       }
 
-      // Освобождаем камеру при уходе
-      function stopMindAR() {
-        try {
-          if (arSystem && arSystem.sessionRunning) arSystem.stop();
-        } catch (e) {}
+      // Базовые проверки (сразу покажем понятную ошибку, если что)
+      if (!checkHTTPS() || !checkCameraSupport()) {
+        return;
       }
-      window.addEventListener('pagehide', stopMindAR);
-      window.addEventListener('beforeunload', stopMindAR);
 
-      // Если страница вернулась из bfcache — покажем запрос снова
-      window.addEventListener('pageshow', (e) => {
-        if (e.persisted) {
-          stopMindAR();
-          if (permissionPrompt) permissionPrompt.classList.remove('hidden');
-          if (cameraError) cameraError.classList.remove('active');
-          if (scanOverlay) scanOverlay.style.display = 'none';
-          setButtonsEnabled(!!arSystem);
-        }
+      // Показываем промпт сразу, но кнопку блокируем, пока AR-движок не готов
+      if (permissionPrompt) permissionPrompt.classList.remove('hidden');
+      setStartButtonState({
+        disabled: true,
+        label: 'Инициализация…',
+        text: 'Подготавливаем AR-движок. Когда кнопка станет активной — можно запускать камеру.'
       });
 
-      // Инициализация
-      function initialize() {
-        if (!checkHTTPS() || !checkCameraSupport() || !checkInAppBrowser()) {
+      // Ждём, пока A-Frame полностью поднимет сцену и зарегистрирует mindar-image-system
+      function onEngineReady() {
+        mindARSystem = sceneEl && sceneEl.systems ? sceneEl.systems['mindar-image-system'] : null;
+        if (!mindARSystem) {
+          showCameraError('AR-движок не загрузился. Проверьте интернет или попробуйте другой браузер.');
           return;
         }
-        // Кнопки выключены до готовности сцены
-        setButtonsEnabled(false);
-
-        if (requestCameraBtn) {
-          requestCameraBtn.textContent = 'Загрузка…';
-        }
-
-        if (sceneEl && sceneEl.hasLoaded) {
-          bindArSystem();
-          if (requestCameraBtn) requestCameraBtn.textContent = 'Разрешить доступ к камере';
-        } else if (sceneEl) {
-          sceneEl.addEventListener('loaded', () => {
-            bindArSystem();
-            if (requestCameraBtn) requestCameraBtn.textContent = 'Разрешить доступ к камере';
-          }, { once: true });
-        }
+        engineReady = true;
+        setStartButtonState({
+          disabled: false,
+          label: 'Разрешить доступ к камере',
+          text: 'Для работы AR-квеста нужен доступ к камере. Нажмите кнопку ниже.'
+        });
       }
 
-      // Кнопки
-      if (requestCameraBtn) requestCameraBtn.addEventListener('click', startARFromClick);
-      if (retryCameraBtn) retryCameraBtn.addEventListener('click', startARFromClick);
+      if (sceneEl) {
+        if (sceneEl.hasLoaded) {
+          onEngineReady();
+        } else {
+          sceneEl.addEventListener('loaded', onEngineReady, { once: true });
+        }
+      } else {
+        showCameraError('Не найдена AR-сцена на странице.');
+        return;
+      }
 
-      initialize();
+      // Запуск камеры (ВАЖНО: без await до вызова start(), чтобы iOS не блокировал)
+      function startMindAR() {
+        if (!engineReady || !mindARSystem || starting) return;
+        starting = true;
+        hideCameraError();
+
+        if (permissionPrompt) permissionPrompt.classList.add('hidden');
+        if (scanOverlay) scanOverlay.style.display = 'flex';
+
+        // стартуем сразу, без предварительного getUserMedia (иначе на старых девайсах камера часто «занимается»)
+        const startPromise = mindARSystem.start();
+
+        Promise.resolve(startPromise)
+          .then(() => {
+            starting = false;
+          })
+          .catch((err) => {
+            starting = false;
+            console.error('MindAR start error:', err);
+
+            // Пытаемся сделать сообщение понятнее
+            const name = err && (err.name || err.constructor && err.constructor.name);
+            let msg = 'Не удалось запустить камеру.';
+            if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+              msg += ' Доступ к камере запрещён. Разрешите камеру в настройках Safari/браузера и попробуйте снова.';
+            } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+              msg += ' Камера не найдена.';
+            } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+              msg += ' Камера занята другим приложением. Закройте приложения, использующие камеру.';
+            } else {
+              msg += ' Попробуйте перезагрузить страницу или открыть в другом браузере.';
+            }
+
+            showCameraError(msg);
+
+            // На всякий случай отпускаем сессию
+            stopAR();
+          });
+      }
+
+      if (requestCameraBtn) {
+        requestCameraBtn.addEventListener('click', startMindAR);
+      }
+
+      if (retryCameraBtn) {
+        retryCameraBtn.addEventListener('click', () => {
+          // вернём пользователя к промпту
+          if (cameraError) cameraError.classList.remove('active');
+          if (permissionPrompt) permissionPrompt.classList.remove('hidden');
+          // если движок уже готов — кнопка активна
+          setStartButtonState({
+            disabled: !engineReady,
+            label: engineReady ? 'Разрешить доступ к камере' : 'Инициализация…',
+            text: engineReady
+              ? 'Для работы AR-квеста нужен доступ к камере. Нажмите кнопку ниже.'
+              : 'Подготавливаем AR-движок. Когда кнопка станет активной — можно запускать камеру.'
+          });
+        });
+      }
+
+      // Освобождаем камеру при уходе со страницы (очень важно для старых устройств)
+      window.addEventListener('pagehide', stopAR);
+      window.addEventListener('beforeunload', stopAR);
     });
   </script>
-
 </body>
 </html>
