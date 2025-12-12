@@ -107,8 +107,13 @@
         Для работы AR-квеста необходим доступ к камере вашего устройства.
         Нажмите "Разрешить", чтобы начать сканирование картин.
       </p>
-      <button class="btn btn--primary" id="requestCameraBtn">
-        Разрешить доступ к камере
+      <button
+        class="btn btn--primary"
+        id="requestCameraBtn"
+        data-label="Разрешить доступ к камере"
+        disabled
+      >
+        Загрузка AR…
       </button>
       <button class="btn btn--light" onclick="window.location.href='index.html'" style="margin-top: 12px;">
         Вернуться в меню
@@ -280,8 +285,16 @@
   </div>
 
   <script>
-    // Камера / AR: раздельная логика по устройствам (iOS Safari vs Android Chrome/Yandex)
-    // Важно: не открываем getUserMedia вручную ДО MindAR, чтобы не занимать камеру дважды.
+    /**
+     * Камера / AR.
+     *
+     * Важно для iOS/Safari:
+     * getUserMedia должен быть вызван строго в рамках пользовательского жеста.
+     * Поэтому мы:
+     * 1) заранее ждём загрузку a-scene и готовность MindAR;
+     * 2) включаем кнопку "Разрешить" только когда всё готово;
+     * 3) в обработчике клика вызываем mindARSystem.start() без каких-либо await ДО этого вызова.
+     */
     document.addEventListener('DOMContentLoaded', () => {
       const permissionPrompt = document.getElementById('cameraPermissionPrompt');
       const cameraError = document.getElementById('cameraError');
@@ -290,6 +303,10 @@
       const retryCameraBtn = document.getElementById('retryCameraBtn');
       const scanOverlay = document.querySelector('[data-ar-scan]');
       const sceneEl = document.querySelector('a-scene');
+
+      const requestLabel =
+        (requestCameraBtn && requestCameraBtn.dataset && requestCameraBtn.dataset.label) ||
+        'Разрешить доступ к камере';
 
       // --- Детект устройства/браузера (минимальный) ---
       const ua = navigator.userAgent || '';
@@ -301,8 +318,22 @@
       const isAndroid = /Android/i.test(ua);
       const isYandex = /YaBrowser/i.test(ua);
       const isChrome = /Chrome|CriOS|Chromium/i.test(ua) && !isYandex && !/Edg|OPR/i.test(ua);
-      const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/i.test(ua) && !isAndroid;
-      const isInApp = /Instagram|FBAN|FBAV|TikTok|VKClient|VKA/i.test(ua);
+      const isSafari =
+        /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/i.test(ua) && !isAndroid;
+      const isInApp = /Instagram|FBAN|FBAV|TikTok|VKClient|VKA|Telegram/i.test(ua);
+
+      // --- Состояние готовности MindAR ---
+      let mindARSystem = null;
+      let sceneReady = false;
+
+      function setRequestButton(enabled) {
+        if (!requestCameraBtn) return;
+        requestCameraBtn.disabled = !enabled;
+        requestCameraBtn.textContent = enabled ? requestLabel : 'Загрузка AR…';
+      }
+
+      // Кнопка всегда стартует "disabled" — включим её только после загрузки сцены
+      setRequestButton(false);
 
       // Подсказываем пользователю правильный браузер под ОС
       const promptTextEl = permissionPrompt
@@ -319,9 +350,7 @@
       }
 
       function showCameraError(message) {
-        if (cameraErrorText) {
-          cameraErrorText.textContent = message;
-        }
+        if (cameraErrorText) cameraErrorText.textContent = message;
         if (permissionPrompt) permissionPrompt.classList.add('hidden');
         if (cameraError) cameraError.classList.add('active');
       }
@@ -329,11 +358,10 @@
       // Проверяем, открыт ли сайт по HTTPS (обязательно для камеры на мобильных)
       function checkHTTPS() {
         const isLocalhost =
-          window.location.hostname === 'localhost' ||
-          window.location.hostname === '127.0.0.1';
+          window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         if (window.location.protocol !== 'https:' && !isLocalhost) {
           showCameraError(
-            'Для работы AR-квеста необходим HTTPS. Пожалуйста, откройте сайт по безопасному соединению (https://).' 
+            'Для работы AR-квеста необходим HTTPS. Пожалуйста, откройте сайт по безопасному соединению (https://).'
           );
           return false;
         }
@@ -351,7 +379,7 @@
         return true;
       }
 
-      // В in-app браузерах (Instagram/FB/VK/TikTok...) камера часто не работает стабильно
+      // В in-app браузерах (Instagram/FB/VK/TikTok/Telegram...) камера часто не работает стабильно
       function checkInAppBrowser() {
         if (!isInApp) return true;
 
@@ -371,6 +399,34 @@
         return false;
       }
 
+      async function prepareScene() {
+        if (!sceneEl) {
+          showCameraError('Не найдена AR-сцена. Обновите страницу и попробуйте снова.');
+          return;
+        }
+
+        try {
+          if (!sceneEl.hasLoaded) {
+            await new Promise((resolve) => {
+              sceneEl.addEventListener('loaded', resolve, { once: true });
+            });
+          }
+
+          const systems = sceneEl.systems || {};
+          mindARSystem = systems['mindar-image-system'] || null;
+          if (!mindARSystem) {
+            showCameraError('Не удалось инициализировать AR. Попробуйте обновить страницу.');
+            return;
+          }
+
+          sceneReady = true;
+          setRequestButton(true);
+        } catch (e) {
+          console.error('Scene prepare error:', e);
+          showCameraError('Не удалось подготовить AR-сцену. Попробуйте обновить страницу.');
+        }
+      }
+
       async function startMindAR() {
         // Базовые проверки
         if (!checkHTTPS() || !checkCameraSupport() || !checkInAppBrowser()) {
@@ -378,12 +434,17 @@
           return false;
         }
 
-        // Доп. мягкая подсказка, если браузер не из списка «желательных»
+        // Мягкая подсказка, если браузер не из списка «желательных»
         if (isIOS && !isSafari) {
           console.warn('iOS: рекомендуется Safari для максимально стабильной работы камеры.');
         }
         if (isAndroid && !(isChrome || isYandex)) {
           console.warn('Android: рекомендуется Chrome или Яндекс Браузер.');
+        }
+
+        if (!sceneReady || !mindARSystem) {
+          showCameraError('AR-сцена ещё загружается. Подождите пару секунд и попробуйте снова.');
+          return false;
         }
 
         try {
@@ -392,97 +453,84 @@
           if (cameraError) cameraError.classList.remove('active');
 
           // Показываем «Сканируем»
-          if (scanOverlay) {
-            scanOverlay.style.display = 'flex';
-          }
+          if (scanOverlay) scanOverlay.style.display = 'flex';
 
-          // Ждем загрузки сцены и запускаем MindAR
-          if (!sceneEl) {
-            showCameraError('Не найдена AR-сцена. Обновите страницу и попробуйте снова.');
-            return false;
-          }
+          // !!! ВАЖНО: никакого await ДО start()
+          const startPromise = mindARSystem.sessionRunning
+            ? Promise.resolve()
+            : mindARSystem.start();
+          await startPromise;
 
-          if (!sceneEl.hasLoaded) {
-            await new Promise((resolve) => {
-              sceneEl.addEventListener('loaded', resolve, { once: true });
-            });
-          }
-
-          const systems = sceneEl.systems || {};
-          const mindARSystem = systems['mindar-image-system'];
-          if (!mindARSystem) {
-            showCameraError('Не удалось инициализировать AR. Попробуйте обновить страницу.');
-            return false;
-          }
-
-          if (!mindARSystem.sessionRunning) {
-            await mindARSystem.start();
+          // После старта иногда полезно явно проставить playsinline на видео (особенно iOS)
+          const videoEl = sceneEl.querySelector('video');
+          if (videoEl) {
+            videoEl.setAttribute('playsinline', '');
+            videoEl.setAttribute('webkit-playsinline', '');
+            videoEl.setAttribute('muted', '');
+            videoEl.muted = true;
+            videoEl.setAttribute('autoplay', '');
           }
 
           return true;
         } catch (error) {
           console.error('MindAR start error:', error);
 
-          // Понятные сообщения
           let errorMessage = 'Не удалось запустить камеру. ';
           const name = (error && error.name) || '';
 
           if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-            errorMessage += 'Вы отклонили запрос. Разрешите доступ к камере в настройках браузера и попробуйте снова.';
+            errorMessage +=
+              'Вы отклонили запрос. Разрешите доступ к камере в настройках браузера и попробуйте снова.';
           } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
             errorMessage += 'Камера не найдена. Убедитесь, что устройство имеет камеру.';
           } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-            errorMessage += 'Камера занята другим приложением. Закройте другие приложения, использующие камеру, и попробуйте снова.';
+            errorMessage +=
+              'Камера занята другим приложением. Закройте другие приложения, использующие камеру, и попробуйте снова.';
           } else if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') {
             errorMessage += 'Параметры камеры не поддерживаются. Попробуйте другой браузер.';
           } else {
             errorMessage += 'Пожалуйста, попробуйте ещё раз или откройте сайт в другом браузере.';
           }
 
-          if (scanOverlay) {
-            scanOverlay.style.display = 'none';
-          }
-
+          if (scanOverlay) scanOverlay.style.display = 'none';
           showCameraError(errorMessage);
           return false;
         }
       }
 
-      // Инициализация при загрузке
-      function initialize() {
-        // Если проблемы с https/поддержкой — сразу покажем ошибку
-        if (!checkHTTPS() || !checkCameraSupport()) {
-          if (permissionPrompt) permissionPrompt.classList.add('hidden');
-          return;
-        }
-
-        // Показываем пользователю явную кнопку (особенно важно для iOS/Safari)
-        if (permissionPrompt) permissionPrompt.classList.remove('hidden');
-      }
-
-      // Обработчики событий
-      if (requestCameraBtn) {
-        requestCameraBtn.addEventListener('click', startMindAR);
-      }
-      if (retryCameraBtn) {
-        retryCameraBtn.addEventListener('click', startMindAR);
-      }
-
       // Освобождаем камеру при уходе со страницы (если MindAR успел стартовать)
       function stopMindAR() {
         try {
-          if (!sceneEl) return;
-          const systems = sceneEl.systems || {};
-          const mindARSystem = systems['mindar-image-system'];
-          if (mindARSystem && mindARSystem.sessionRunning) {
+          if (!mindARSystem) return;
+          if (mindARSystem.sessionRunning) {
             mindARSystem.stop();
           }
         } catch (e) {
           // игнор
         }
       }
+
+      // Инициализация при загрузке
+      function initialize() {
+        // Если проблемы с https/поддержкой — сразу покажем ошибку
+        if (!checkHTTPS() || !checkCameraSupport() || !checkInAppBrowser()) {
+          if (permissionPrompt) permissionPrompt.classList.add('hidden');
+          return;
+        }
+
+        if (permissionPrompt) permissionPrompt.classList.remove('hidden');
+        prepareScene();
+      }
+
+      // Обработчики событий
+      if (requestCameraBtn) requestCameraBtn.addEventListener('click', startMindAR);
+      if (retryCameraBtn) retryCameraBtn.addEventListener('click', startMindAR);
+
       window.addEventListener('pagehide', stopMindAR);
       window.addEventListener('beforeunload', stopMindAR);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopMindAR();
+      });
 
       // Старт
       initialize();

@@ -290,6 +290,8 @@ button {
   box-sizing: border-box;
   -webkit-appearance: none;
   appearance: none;
+  /* убираем задержку клика/двойной тап-зум на мобилках */
+  touch-action: manipulation;
 }
 
 .btn--primary {
@@ -313,6 +315,14 @@ button {
 .btn:active {
   transform: translateY(1px);
   opacity: 0.9;
+}
+
+/* disabled (нужно для "Загрузка AR…" / запроса камеры) */
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* =========================================
@@ -446,8 +456,13 @@ button {
   width: 100vw !important;
   height: calc(var(--vh, 1vh) * 100) !important;
   object-fit: cover;
-  z-index: 0;          /* было -1 */
+  z-index: 0;          /* видео будет ниже канваса */
   pointer-events: none;
+}
+
+/* Канвас A-Frame — поверх видео, иначе AR-объекты могут не быть видны */
+.page--ar canvas.a-canvas {
+  z-index: 1;
 }
 
 .ar-ui {
@@ -475,6 +490,7 @@ button {
 .btn-back {
   pointer-events: auto;
   border: none;
+  touch-action: manipulation;
   width: 72px;
   height: 72px;
   border-radius: 16px;
