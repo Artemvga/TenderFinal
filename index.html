@@ -18,7 +18,7 @@
   <script src="assets/js/main.js" defer></script>
 </head>
 <body class="page page--menu">
-  <!-- Фон -->
+  <!-- Фон главного экрана -->
   <div class="page-bg">
     <img src="assets/png/BG.png" alt="" class="page-bg__image" />
     <div class="page-bg__overlay"></div>
@@ -44,7 +44,7 @@
     </div>
   </div>
 
-  <!-- Главное меню -->
+  <!-- ГЛАВНОЕ МЕНЮ -->
   <main class="menu" data-screen="menu-main" hidden>
     <section class="menu-card">
       <p class="menu-kicker">AR-квест</p>
@@ -56,10 +56,11 @@
       </p>
 
       <div class="menu-actions">
-        <!-- белая кнопка с чёрным текстом -->
+        <!-- Белая кнопка инструкции (PNG Button_BG_White, чёрный текст) -->
         <button class="btn btn--light" data-action="open-instructions">
           Смотреть инструкцию
         </button>
+        <!-- Цветная кнопка AR (PNG Button_BG_Color) -->
         <button class="btn btn--primary" data-action="start-ar">
           Сканировать картины
         </button>
@@ -67,7 +68,7 @@
     </section>
   </main>
 
-  <!-- Экран инструкции (открывается только по кнопке) -->
+  <!-- ЭКРАН ИНСТРУКЦИИ -->
   <main class="screen screen--instructions" data-screen="menu-instructions" hidden>
     <section class="screen-card">
       <header class="screen-header">

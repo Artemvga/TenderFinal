@@ -1,4 +1,6 @@
-/* ---------- Шрифты ---------- */
+/* =========================================
+   ШРИФТЫ (подставь свои файлы при необходимости)
+   ========================================= */
 
 @font-face {
   font-family: "InterTight";
@@ -36,15 +38,24 @@
   font-display: swap;
 }
 
-/* ---------- Базовые стили ---------- */
-
 :root {
   --color-bg-overlay: rgba(0, 0, 0, 0.6);
   --color-white: #ffffff;
   --radius-lg: 24px;
   --radius-pill: 999px;
   --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.35);
+
+  --font-heading: "InterTight", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --font-body: "InterTight", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --font-ui: "InterTight", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
 }
+
+/* =========================================
+   БАЗА
+   ========================================= */
 
 *,
 *::before,
@@ -61,8 +72,7 @@ body {
 }
 
 body {
-  font-family: "InterTight", system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+  font-family: var(--font-body);
   background: #000000;
   color: var(--color-white);
   -webkit-font-smoothing: antialiased;
@@ -73,14 +83,20 @@ img {
   display: block;
 }
 
-/* ---------- Общий wrapper ---------- */
+button {
+  font-family: inherit;
+}
+
+/* Общий wrapper страницы */
 
 .page {
   position: relative;
   min-height: 100vh;
 }
 
-/* ---------- Фон главного экрана ---------- */
+/* =========================================
+   ФОН ГЛАВНОГО ЭКРАНА
+   ========================================= */
 
 .page-bg {
   position: fixed;
@@ -101,7 +117,9 @@ img {
   background: var(--color-bg-overlay);
 }
 
-/* ---------- ЭКРАН ЗАГРУЗКИ ---------- */
+/* =========================================
+   ПРЕЛОАДЕР
+   ========================================= */
 
 .preloader {
   position: fixed;
@@ -150,7 +168,7 @@ img {
   animation: preloaderSpin 0.8s linear infinite;
 }
 
-/* прогресс-бар */
+/* прогрессбар */
 .preloader__bar {
   position: relative;
   width: min(260px, 70vw);
@@ -184,7 +202,9 @@ img {
   }
 }
 
-/* ---------- Главное меню ---------- */
+/* =========================================
+   ГЛАВНОЕ МЕНЮ
+   ========================================= */
 
 .page--menu {
   display: flex;
@@ -218,6 +238,7 @@ img {
 }
 
 .menu-title {
+  font-family: var(--font-heading);
   font-size: clamp(28px, 5vw, 34px);
   line-height: 1.2;
   font-weight: 700;
@@ -237,7 +258,9 @@ img {
   gap: 12px;
 }
 
-/* ---------- Кнопки ---------- */
+/* =========================================
+   КНОПКИ
+   ========================================= */
 
 .btn {
   position: relative;
@@ -245,17 +268,23 @@ img {
   align-items: center;
   justify-content: center;
   width: 100%;
+  max-width: 100%;
   padding: 14px 20px;
+  min-height: 48px;
   border-radius: var(--radius-pill);
   border: none;
   background: transparent;
   color: var(--color-white);
+  font-family: var(--font-ui);
   font-weight: 600;
   font-size: 15px;
   letter-spacing: 0.02em;
   text-decoration: none;
   cursor: pointer;
   overflow: hidden;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .btn--primary {
@@ -281,7 +310,9 @@ img {
   opacity: 0.9;
 }
 
-/* ---------- Экран инструкции ---------- */
+/* =========================================
+   ЭКРАН ИНСТРУКЦИИ
+   ========================================= */
 
 .screen {
   position: relative;
@@ -292,7 +323,7 @@ img {
   padding: 20px 16px;
 }
 
-/* чтобы hidden реально скрывал */
+/* чтобы hidden реально скрывал блок */
 .screen[hidden] {
   display: none;
 }
@@ -322,7 +353,7 @@ img {
 
 .screen-body {
   margin-top: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   overflow: auto;
   max-height: calc(100vh - 200px);
   padding-right: 4px;
@@ -362,11 +393,14 @@ img {
   opacity: 0.9;
 }
 
+/* Кнопка "Назад" сразу после текста, не приклеена к низу экрана */
 .screen-footer {
-  margin-top: 12px; /* кнопка сразу после текста, но с небольшим отступом */
+  margin-top: 12px;
 }
 
-/* ---------- Safe-area для телефонов ---------- */
+/* =========================================
+   SAFE-AREA ДЛЯ МОБИЛОК
+   ========================================= */
 
 .safe-area-top {
   padding-top: calc(12px + env(safe-area-inset-top, 0px));
@@ -376,6 +410,35 @@ img {
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
+/* =========================================
+   AR-СТРАНИЦА
+   ========================================= */
+
+.page--ar {
+  background: #000000;
+  overflow: hidden;
+}
+
+/* a-scene на весь экран */
+.page--ar a-scene {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Видео и WebGL-канвас — растянуть полностью */
+.page--ar video,
+.page--ar canvas.a-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  object-fit: cover;
+  z-index: -1; /* UI поверх */
+}
 
 /* UI-слой над AR */
 .ar-ui {
@@ -395,7 +458,7 @@ img {
   pointer-events: none;
 }
 
-/* квадратная большая кнопка выхода (PNG Button_Back) */
+/* большая квадратная кнопка back */
 .btn-back {
   pointer-events: auto;
   border: none;
@@ -413,8 +476,11 @@ img {
   font-size: 0;
 }
 
-/* Оверлеи поверх AR */
+/* =========================================
+   ОВЕРЛЕИ И ПАНЕЛИ В AR
+   ========================================= */
 
+/* Общий слой оверлея */
 .ar-overlay {
   position: fixed;
   inset: 0;
@@ -425,7 +491,7 @@ img {
   padding: 20px 16px;
 }
 
-/* Никакого затемнения — только контент, чтобы камера была видна */
+/* Сканирование — без затемнения, чтобы камера была видна */
 .ar-overlay--scan {
   background: none;
 }
@@ -446,49 +512,63 @@ img {
   opacity: 0.9;
 }
 
-/* затемнение только для панелей */
+/* Панели: затемнение и центрирование */
 .ar-overlay--panel {
   background: radial-gradient(circle at top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.9));
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px;
 }
 
 .ar-overlay[hidden] {
   display: none;
 }
 
-/* Общий стиль панелей */
-
+/* Панель контента */
 .panel {
   pointer-events: auto;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.85);
   border-radius: var(--radius-lg);
-  padding: 20px 18px 16px;
+  padding: 16px 16px 12px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   max-width: 540px;
   width: 100%;
+  max-height: calc(100vh - 40px);
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(16px);
+
+  display: flex;
+  flex-direction: column;
 }
 
 .panel__title {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-size: 16px;
   line-height: 1.4;
   font-weight: 600;
 }
 
+/* Текст панели может быть длинным — делаем прокрутку внутри */
 .panel__text {
-  margin: 0 0 16px;
+  margin: 0 0 12px;
   font-size: 14px;
   line-height: 1.5;
   opacity: 0.9;
   white-space: pre-line;
+
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 
+/* Кнопка всегда внизу панели */
 .panel__button {
   margin-top: 4px;
+  flex-shrink: 0;
 }
 
-/* ---------- Адаптив ---------- */
+/* =========================================
+   АДАПТИВ
+   ========================================= */
 
 @media (min-width: 768px) {
   .menu-card {
@@ -500,36 +580,45 @@ img {
   }
 
   .panel {
-    padding: 24px 24px 18px;
+    padding: 20px 20px 14px;
   }
 }
 
-/* ---------- FULLSCREEN КАМЕРА НА AR-СТРАНИЦЕ ---------- */
+/* Мобильные устройства (iPhone и т.п.) */
 
-/* Страница AR без скролла */
-.page--ar {
-  background: #000;
-  overflow: hidden;
+@media (max-width: 600px) {
+  .menu-card {
+    padding: 24px 18px 20px;
+  }
+
+  .menu-title {
+    font-size: 26px;
+  }
+
+  .menu-text {
+    font-size: 14px;
+  }
+
+  .btn {
+    padding: 12px 18px;
+    font-size: 14px;
+  }
+
+  .ar-overlay--panel {
+    padding: 12px 10px;
+  }
+
+  .panel {
+    max-width: 420px;
+    max-height: calc(100vh - 24px);
+    padding: 14px 14px 10px;
+  }
+
+  .panel__title {
+    font-size: 15px;
+  }
+
+  .panel__text {
+    font-size: 13px;
+  }
 }
-
-/* Растягиваем A-Frame сцену на весь экран */
-.page--ar a-scene {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-}
-
-/* Видео с камеры и WebGL-канвас на весь экран поверх фона */
-.page--ar video,
-.page--ar canvas.a-canvas {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw !important;
-  height: 100vh !important;
-  object-fit: cover;   /* максимально заполняет экран, может чуть обрезать края */
-  z-index: -1;         /* чтобы UI был поверх */
-}
-

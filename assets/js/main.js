@@ -1,9 +1,14 @@
 // assets/js/main.js
 
-// =====================
-// Утилиты предзагрузки
-// =====================
+// ======================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ПРЕДЗАГРУЗКИ РЕСУРСОВ
+// ======================================================
 
+/**
+ * Простая предзагрузка массива картинок.
+ * @param {string[]} urls - список путей к изображениям
+ * @returns {Promise<void[]>}
+ */
 function preloadImages(urls) {
   const promises = urls.map((url) => {
     return new Promise((resolve) => {
@@ -15,7 +20,11 @@ function preloadImages(urls) {
   return Promise.all(promises);
 }
 
-// onProgress(progress [0..1], text?)
+/**
+ * Предзагружаем шрифты, ключевые картинки и targets.mind.
+ * Вызываем onProgress, чтобы обновлять прогрессбар на прелоадере.
+ * @param {(progress: number, text?: string) => void} onProgress
+ */
 async function preloadCoreAssets(onProgress) {
   const images = [
     "assets/png/BG.png",
@@ -27,36 +36,40 @@ async function preloadCoreAssets(onProgress) {
     "assets/png/Paint.png",
   ];
 
+  // 1) ждём шрифты
   const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
 
-  onProgress && onProgress(0.15, "Загружаем шрифты…");
+  if (onProgress) onProgress(0.15, "Загружаем шрифты…");
   await fontsReady;
 
-  onProgress && onProgress(0.55, "Загружаем изображения…");
+  // 2) грузим изображения
+  if (onProgress) onProgress(0.55, "Загружаем изображения…");
   await preloadImages(images);
 
-  onProgress && onProgress(0.85, "Проверяем AR-данные…");
+  // 3) пробуем заранее скачать targets.mind (AR-таргет)
+  if (onProgress) onProgress(0.85, "Проверяем AR-данные…");
   try {
     await fetch("targets.mind", { cache: "force-cache" });
   } catch (e) {
     console.warn("Не удалось предварительно загрузить targets.mind", e);
   }
 
-  onProgress && onProgress(1, "Готово! Запускаем меню…");
+  if (onProgress) onProgress(1, "Готово! Запускаем меню…");
 }
 
-// =====================
-// Главное меню + инструкция (index.html)
-// =====================
+// ======================================================
+// ГЛАВНОЕ МЕНЮ + ЭКРАН ИНСТРУКЦИИ (index.html)
+// ======================================================
 
 function initMenuPage() {
+  // Проверяем: если на странице нет главного меню — значит, это не index.html
   const preloader = document.querySelector('[data-screen="preloader"]');
   const menuMain = document.querySelector('[data-screen="menu-main"]');
   const screenInstructions = document.querySelector(
     '[data-screen="menu-instructions"]'
   );
 
-  if (!menuMain) return; // значит, это не index.html
+  if (!menuMain) return; // тихо выходим — дальше отработает initArPage
 
   const openInstructionsBtn = document.querySelector(
     '[data-action="open-instructions"]'
@@ -67,6 +80,11 @@ function initMenuPage() {
   const barFill = document.querySelector(".preloader__bar-fill");
   const labelEl = document.querySelector("[data-preloader-label]");
 
+  /**
+   * Обновление прогресса на прелоадере.
+   * @param {number} progress 0..1
+   * @param {string} [text]
+   */
   function updatePreloader(progress, text) {
     const clamped = Math.max(0, Math.min(progress, 1));
     if (barFill) {
@@ -77,46 +95,66 @@ function initMenuPage() {
     }
   }
 
+  /**
+   * Переключение между экранами:
+   * - главное меню (menu-main)
+   * - инструкция (menu-instructions)
+   */
   function showScreen(screenToShow) {
-    [menuMain, screenInstructions].forEach((screen) => {
+    const screens = [menuMain, screenInstructions];
+    screens.forEach((screen) => {
       if (!screen) return;
       screen.hidden = screen !== screenToShow;
     });
   }
 
-  // Показ меню после предзагрузки ассетов
+  // Асинхронный блок: сначала предзагружаем ресурсы, потом показываем меню
   (async () => {
     try {
       await preloadCoreAssets(updatePreloader);
     } catch (e) {
       console.warn("Preload failed", e);
+      // Даже если что-то не загрузилось — даём зайти в меню
     }
 
-    if (preloader) preloader.style.display = "none";
+    if (preloader) {
+      preloader.style.display = "none";
+    }
     showScreen(menuMain);
   })();
 
-  openInstructionsBtn?.addEventListener("click", () => {
-    showScreen(screenInstructions);
-  });
+  // Открыть инструкцию
+  if (openInstructionsBtn) {
+    openInstructionsBtn.addEventListener("click", () => {
+      showScreen(screenInstructions);
+    });
+  }
 
-  backToMenuBtn?.addEventListener("click", () => {
-    showScreen(menuMain);
-  });
+  // Назад в меню из инструкции
+  if (backToMenuBtn) {
+    backToMenuBtn.addEventListener("click", () => {
+      showScreen(menuMain);
+    });
+  }
 
-  startArBtn?.addEventListener("click", () => {
-    window.location.href = "ar-scene.html";
-  });
+  // Переход в AR-сцену
+  if (startArBtn) {
+    startArBtn.addEventListener("click", () => {
+      window.location.href = "ar-scene.html";
+    });
+  }
 }
 
-// =====================
-// AR-сцена (ar-scene.html)
-// =====================
+// ======================================================
+// AR-СЦЕНА (ar-scene.html)
+// ======================================================
 
 function initArPage() {
+  // Если на странице нет корневого AR-UI — это не ar-scene.html
   const arRoot = document.querySelector("[data-ar-root]");
-  if (!arRoot) return; // не ar-scene.html
+  if (!arRoot) return;
 
+  // Элементы AR UI
   const exitBtn = document.querySelector('[data-action="exit-to-menu"]');
   const scanOverlay = document.querySelector("[data-ar-scan]");
   const scanTextEl = document.querySelector("[data-scan-text]");
@@ -127,12 +165,14 @@ function initArPage() {
   const poiTitleEl = document.querySelector("[data-poi-title]");
   const poiTextEl = document.querySelector("[data-poi-text]");
 
-  exitBtn?.addEventListener("click", () => {
-    window.location.href = "index.html";
-  });
+  // Кнопка выхода слева сверху
+  if (exitBtn) {
+    exitBtn.addEventListener("click", () => {
+      window.location.href = "index.html";
+    });
+  }
 
-  // -------- контент точек интереса --------
-
+  // Контент для трёх точек интереса
   const poiContent = {
     1: {
       title: "Потерянный портрет.",
@@ -167,75 +207,114 @@ function initArPage() {
     },
   };
 
+  // Чтобы вводная панель показалась только один раз
   let introShown = false;
 
+  /**
+   * Показ панели с содержимым точки интереса.
+   * @param {number} id - 1, 2 или 3
+   */
   function showPoi(id) {
     const content = poiContent[id];
     if (!content) return;
+
     if (poiTitleEl) poiTitleEl.textContent = content.title;
     if (poiTextEl) poiTextEl.textContent = content.text;
     if (poiPanel) poiPanel.hidden = false;
   }
 
+  /**
+   * Основная логика AR:
+   * - targetFound → показываем вводную панель
+   * - закрытие вводной → показываем POI
+   * - клики по POI → панели с текстом
+   */
   function setupArLogic() {
     const targetEntity = document.querySelector("#artwork-target");
     const poiGroup = document.querySelector("#poi-group");
-    const poiEls = Array.from(document.querySelectorAll(".poi-ar"));
+    // "Расширенные" зоны попадания по точкам
+    const poiHits = Array.from(document.querySelectorAll(".poi-hit"));
 
-    // --- клики по POI (мышь / тач через raycaster) ---
-    poiEls.forEach((el) => {
-      const id = el.dataset.poi;
-      if (!id) return;
+    // --- клики по POI ---
+    poiHits.forEach((hit) => {
+      const idStr = hit.dataset.poi;
+      const id = parseInt(idStr, 10);
+      if (!id || !poiContent[id]) return;
 
-      el.addEventListener("click", () => {
+      // Ищем иконку этой точки (маленькое изображение внутри одной обёртки)
+      const wrapper = hit.parentElement;
+      const icon = wrapper
+        ? wrapper.querySelector(".poi-icon")
+        : null;
+
+      // Клик (тап/клик мышью через raycaster): показываем соответствующую панель
+      hit.addEventListener("click", () => {
         showPoi(id);
       });
 
-      el.addEventListener("mouseenter", () => {
-        el.setAttribute("scale", "1.1 1.1 1.1");
-      });
-      el.addEventListener("mouseleave", () => {
-        el.setAttribute("scale", "1 1 1");
-      });
+      // Визуальный отклик по наведению (на десктопе/когда raycaster шлёт события)
+      if (icon) {
+        hit.addEventListener("mouseenter", () => {
+          icon.setAttribute("scale", "1.15 1.15 1.15");
+        });
+        hit.addEventListener("mouseleave", () => {
+          icon.setAttribute("scale", "1 1 1");
+        });
+      }
     });
 
-    // --- закрытие вводной панели: включаем POI ---
-    introCloseBtn?.addEventListener("click", () => {
-      if (introOverlay) introOverlay.hidden = true;
-      if (poiGroup) poiGroup.setAttribute("visible", "true");
-    });
+    // --- закрытие вводной панели: открываем точки интереса ---
+    if (introCloseBtn) {
+      introCloseBtn.addEventListener("click", () => {
+        if (introOverlay) introOverlay.hidden = true;
+        if (poiGroup) poiGroup.setAttribute("visible", "true");
+      });
+    }
 
     // --- закрытие панели точки интереса ---
-    poiCloseBtn?.addEventListener("click", () => {
-      if (poiPanel) poiPanel.hidden = true;
-    });
+    if (poiCloseBtn) {
+      poiCloseBtn.addEventListener("click", () => {
+        if (poiPanel) poiPanel.hidden = true;
+      });
+    }
 
+    // --- реакция на распознавание маркера MindAR ---
     if (targetEntity) {
-      // Срабатывает, когда MindAR нашёл метку
       targetEntity.addEventListener("targetFound", () => {
-        if (scanOverlay) scanOverlay.style.display = "none";
+        // Прячем экран "Сканируем"
+        if (scanOverlay) {
+          scanOverlay.style.display = "none";
+        }
 
+        // Первый раз показываем вводную панель
         if (!introShown && introOverlay) {
           introOverlay.hidden = false;
           introShown = true;
         }
       });
 
-      // targetLost специально не обрабатываем — по ТЗ панель не закрываем
+      // targetLost НЕ трогаем — по ТЗ панель не закрывать при пропаже метки
     }
   }
 
-  // -------- минимальная проверка камеры (без getUserMedia, не ломаем MindAR) --------
-
+  /**
+   * Мини-проверка камеры:
+   * - есть ли вообще поддержка mediaDevices;
+   * - есть ли видеоустройства;
+   * - не запрещена ли камера в Permissions API.
+   * getUserMedia здесь НЕ вызываем, чтобы не мешать MindAR управлять камерой.
+   */
   async function checkCameraSupport() {
     if (!scanTextEl) return;
 
+    // 1) Совсем старый/нестандартный браузер
     if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
       scanTextEl.textContent =
         "Камера не поддерживается в этом браузере. Откройте сцену в Chrome, Safari или Яндекс.Браузере.";
       return;
     }
 
+    // 2) Проверяем наличие видеоустройств
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const hasVideoInput = devices.some(
@@ -249,8 +328,10 @@ function initArPage() {
       }
     } catch (e) {
       console.warn("enumerateDevices error", e);
+      // Если не смогли проверить — продолжаем, MindAR сам попробует
     }
 
+    // 3) Если есть Permissions API — проверяем, не запрещена ли камера
     if (navigator.permissions && navigator.permissions.query) {
       try {
         const status = await navigator.permissions.query({ name: "camera" });
@@ -261,10 +342,14 @@ function initArPage() {
           return;
         }
 
+        // На всякий случай обновляем текст при изменении статуса
         status.onchange = () => {
           if (status.state === "denied") {
             scanTextEl.textContent =
               "Доступ к камере запрещён. Разрешите доступ в настройках браузера.";
+          } else if (status.state === "granted") {
+            scanTextEl.textContent =
+              "Наведите камеру на картину, чтобы начать.";
           }
         };
       } catch (e) {
@@ -272,19 +357,20 @@ function initArPage() {
       }
     }
 
-    // Всё ок — MindAR сам запросит доступ к камере
+    // Если дошли сюда — с точки зрения браузера всё ок, MindAR запросит доступ сам
     scanTextEl.textContent = "Наведите камеру на картину, чтобы начать.";
   }
 
+  // Стартуем проверки и AR-логику
   checkCameraSupport();
-  setupArLogic(); // сразу вешаем все обработчики
+  setupArLogic();
 }
 
-// =====================
-// Точка входа
-// =====================
+// ======================================================
+// ТОЧКА ВХОДА ДЛЯ ОБЕИХ СТРАНИЦ
+// ======================================================
 
 document.addEventListener("DOMContentLoaded", () => {
-  initMenuPage();
-  initArPage();
+  initMenuPage(); // отработает только на index.html
+  initArPage();   // отработает только на ar-scene.html
 });
