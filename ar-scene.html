@@ -13,7 +13,7 @@
 
   <!-- A-Frame и MindAR -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <!-- Основной JS -->
   <script src="assets/js/main.js" defer></script>
@@ -124,7 +124,7 @@
   <!-- Сообщение об ошибке камеры -->
   <div class="camera-error" id="cameraError">
     <div class="camera-error__content">
-      <h2 class="camera-error__title">Нет доступа к камере</h2>
+      <h2 class="camera-error__title">Не удалось запустить AR</h2>
       <p class="camera-error__text" id="cameraErrorText">
         Для работы AR необходим доступ к камере. Пожалуйста, разрешите доступ к камере в настройках браузера и попробуйте снова.
       </p>
@@ -402,32 +402,46 @@
       async function prepareScene() {
         if (!sceneEl) {
           showCameraError('Не найдена AR-сцена. Обновите страницу и попробуйте снова.');
-          return;
+          return false;
         }
 
-        try {
-          if (!sceneEl.hasLoaded) {
-            await new Promise((resolve) => {
-              sceneEl.addEventListener('loaded', resolve, { once: true });
-            });
-          }
+        // На некоторых устройствах/сетях MindAR с CDN может не загрузиться.
+        // Чтобы не зависнуть на "Загрузка AR…", ждём ограниченное время и показываем понятную ошибку.
+        const timeoutMs = 12000;
+        const start = Date.now();
 
-          const systems = sceneEl.systems || {};
-          mindARSystem = systems['mindar-image-system'] || null;
-          if (!mindARSystem) {
-            showCameraError('Не удалось инициализировать AR. Попробуйте обновить страницу.');
-            return;
-          }
+        // Ждём, когда A-Frame реально поднимет сцену и появится система MindAR
+        while (Date.now() - start < timeoutMs) {
+          try {
+            const systems = sceneEl.systems || null;
+            const sys = systems ? systems['mindar-image-system'] : null;
 
-          sceneReady = true;
-          setRequestButton(true);
-        } catch (e) {
-          console.error('Scene prepare error:', e);
-          showCameraError('Не удалось подготовить AR-сцену. Попробуйте обновить страницу.');
+            // sceneEl.hasLoaded может быть undefined до апгрейда A-Frame кастом-элемента
+            const loaded = sceneEl.hasLoaded === true;
+
+            if (sys && (loaded || sceneEl.hasLoaded != null)) {
+              mindARSystem = sys;
+              sceneReady = true;
+              setRequestButton(true);
+              return true;
+            }
+          } catch (e) {
+            // игнорируем и продолжаем ждать
+          }
+          await new Promise((r) => setTimeout(r, 200));
         }
+
+        // Если не дождались — почти наверняка не загрузился MindAR-скрипт или он блокируется сетью.
+        showCameraError(
+          'AR-движок не загрузился (MindAR). Частая причина — блокировка CDN/скриптов на сети. ' +
+          'Попробуйте другой интернет (Wi‑Fi/моб.), отключите блокировщики, либо откройте через VPN. ' +
+          'Также проверьте, что страница открыта по HTTPS.'
+        );
+        return false;
       }
 
-      async function startMindAR() {
+
+async function startMindAR() {
         // Базовые проверки
         if (!checkHTTPS() || !checkCameraSupport() || !checkInAppBrowser()) {
           if (permissionPrompt) permissionPrompt.classList.add('hidden');
@@ -443,11 +457,13 @@
         }
 
         if (!sceneReady || !mindARSystem) {
-          showCameraError('AR-сцена ещё загружается. Подождите пару секунд и попробуйте снова.');
+          showCameraError('AR ещё загружается. Подождите пару секунд и попробуйте снова. ' +
+            'Если не проходит — скорее всего MindAR-скрипт не загрузился (блокировка CDN). Попробуйте другой интернет/браузер или VPN.');
           return false;
         }
 
-        try {
+        
+try {
           // Скрываем запрос разрешения
           if (permissionPrompt) permissionPrompt.classList.add('hidden');
           if (cameraError) cameraError.classList.remove('active');
