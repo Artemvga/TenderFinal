@@ -137,7 +137,7 @@ function initMenuPage() {
     });
   }
 
-  // Переход в AR-сцену — без каких-либо спец. проверок камеры
+  // Переход в AR-сцену — без специальных проверок, просто идём в ar-scene.html
   if (startArBtn) {
     startArBtn.addEventListener("click", () => {
       window.location.href = "ar-scene.html";
@@ -430,8 +430,59 @@ function initArPage() {
   }
 
   /**
-   * Автоматический запуск MindAR при входе в сцену.
-   * Это даёт автозапуск камеры без дополнительных кнопок.
+   * Явно просим у браузера доступ к камере.
+   * Пробуем несколько вариантов: сначала environment, потом любая.
+   * Успешный стрим сразу останавливаем — дальше MindAR сам заберёт камеру.
+   */
+  async function ensureCameraAccess() {
+    if (
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      console.warn("mediaDevices.getUserMedia не поддерживается");
+      if (scanOverlay) {
+        const textEl = scanOverlay.querySelector("[data-scan-text]");
+        if (textEl) {
+          textEl.textContent =
+            "Ваш браузер не поддерживает камеру для AR. Попробуйте другой.";
+        }
+      }
+      return;
+    }
+
+    const constraintsList = [
+      { video: { facingMode: { ideal: "environment" } } },
+      { video: { facingMode: "environment" } },
+      { video: true }, // "любая" камера
+    ];
+
+    for (const constraints of constraintsList) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(
+          constraints
+        );
+        // Раз доступ получили — сразу отпускаем, MindAR потом сам запросит
+        stream.getTracks().forEach((t) => t.stop());
+        console.log("Camera access granted with constraints", constraints);
+        return;
+      } catch (e) {
+        console.warn("getUserMedia failed for", constraints, e);
+      }
+    }
+
+    // Если сюда дошли — ни один вариант не сработал
+    if (scanOverlay) {
+      const textEl = scanOverlay.querySelector("[data-scan-text]");
+      if (textEl) {
+        textEl.textContent =
+          "Не удалось получить доступ к камере. Проверьте разрешения и перезапустите страницу.";
+      }
+    }
+  }
+
+  /**
+   * Автоматический запуск MindAR.
+   * Вызываем после ensureCameraAccess, чтобы браузер уже "разрешил" камеру.
    */
   function startMindarAutomatically(attempt = 0) {
     const sceneEl = document.querySelector("a-scene");
@@ -450,9 +501,12 @@ function initArPage() {
     }
   }
 
-  // Вешаем логику AR и автостарт MindAR
+  // Вешаем логику AR и запускаем всё
   setupArLogic();
-  startMindarAutomatically();
+  (async () => {
+    await ensureCameraAccess();  // явно просим камеру (любую)
+    startMindarAutomatically();  // затем даём старт MindAR
+  })();
 }
 
 // ======================================================
