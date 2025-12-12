@@ -65,30 +65,28 @@
   
   <!-- Скрипт для инициализации камеры -->
   <script>
-    // Проверка и запрос разрешений камеры перед загрузкой сцены
-    document.addEventListener('DOMContentLoaded', async () => {
+    // Проверка разрешений камеры и отложенный старт MindAR (нужен явный запрос в новых версиях Chrome)
+    document.addEventListener('DOMContentLoaded', () => {
       const errorOverlay = document.querySelector('.camera-error');
       const retryBtn = document.querySelector('.camera-error__retry');
-      
+      const sceneEl = document.querySelector('a-scene');
+
       async function requestCameraPermission() {
         try {
-          // Проверяем доступность API
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          if (!navigator.mediaDevices?.getUserMedia) {
             throw new Error('Camera API not supported');
           }
 
-          // Запрашиваем разрешение на камеру
-          const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-              facingMode: 'environment',
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: 'environment' },
               width: { ideal: 1280 },
               height: { ideal: 720 }
-            } 
+            }
           });
-          
-          // Останавливаем поток - мы просто проверяли разрешение
+
+          // Предзапрос: закрываем поток, MindAR запросит свой
           stream.getTracks().forEach(track => track.stop());
-          
           return true;
         } catch (err) {
           console.error('Camera permission error:', err);
@@ -96,26 +94,50 @@
         }
       }
 
-      // Пытаемся получить доступ к камере
-      const hasPermission = await requestCameraPermission();
-      
-      if (!hasPermission) {
-        if (errorOverlay) {
-          errorOverlay.classList.add('active');
+      async function startMindAR() {
+        if (!sceneEl) return false;
+
+        // Ждём, пока сцена полностью инициализируется
+        if (!sceneEl.hasLoaded) {
+          await new Promise((resolve) =>
+            sceneEl.addEventListener('loaded', resolve, { once: true })
+          );
+        }
+
+        const mindARSystem = sceneEl.systems?.['mindar-image-system'];
+        if (!mindARSystem) return false;
+
+        if (mindARSystem.sessionRunning) return true;
+        try {
+          await mindARSystem.start();
+          return true;
+        } catch (err) {
+          console.error('MindAR start error:', err);
+          return false;
         }
       }
 
-      // Обработчик повторной попытки
-      if (retryBtn) {
-        retryBtn.addEventListener('click', async () => {
-          const retry = await requestCameraPermission();
-          if (retry && errorOverlay) {
-            errorOverlay.classList.remove('active');
-            // Перезагружаем страницу для инициализации MindAR
-            window.location.reload();
-          }
-        });
+      async function ensureCameraAndStart() {
+        const hasPermission = await requestCameraPermission();
+        if (!hasPermission) {
+          errorOverlay?.classList.add('active');
+          return;
+        }
+
+        const started = await startMindAR();
+        if (!started) {
+          errorOverlay?.classList.add('active');
+          return;
+        }
+
+        errorOverlay?.classList.remove('active');
       }
+
+      // Первая попытка сразу после загрузки DOM
+      ensureCameraAndStart();
+
+      // Явный жест пользователя — повторная попытка
+      retryBtn?.addEventListener('click', ensureCameraAndStart);
     });
   </script>
 </head>
@@ -138,7 +160,7 @@
 
   <!-- AR-сцена: камера на фоне, UI поверх -->
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.001;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.001;"
     color-space="sRGB"
     renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true; antialias: true; precision: medium;"
     vr-mode-ui="enabled: false"
@@ -294,19 +316,14 @@
         sceneEl.addEventListener('loaded', () => {
           console.log('A-Frame scene loaded');
           
-          // Запускаем MindAR через небольшую задержку
+          // Старт MindAR теперь переносим в ensureCameraAndStart (выше),
+          // здесь только подтверждаем готовность сцены.
           setTimeout(() => {
             const mindARSystem = sceneEl.systems['mindar-image-system'];
-            if (mindARSystem) {
-              mindARSystem.start().then(() => {
-                console.log('MindAR started successfully');
-              }).catch(err => {
-                console.error('MindAR start error:', err);
-                const errorOverlay = document.querySelector('.camera-error');
-                if (errorOverlay) {
-                  errorOverlay.classList.add('active');
-                }
-              });
+            if (mindARSystem?.sessionRunning) {
+              console.log('MindAR already running');
+            } else {
+              console.log('MindAR will start after camera permission');
             }
           }, 500);
         });
