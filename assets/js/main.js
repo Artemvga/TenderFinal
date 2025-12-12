@@ -113,7 +113,7 @@ function initMenuPage() {
     try {
       await preloadCoreAssets(updatePreloader);
     } catch (e) {
-      console.warn("Preload failed", e);
+      console.error("Preload failed", e);
       // Даже если что-то не загрузилось — даём зайти в меню
     }
 
@@ -157,7 +157,6 @@ function initArPage() {
   // Элементы AR UI
   const exitBtn = document.querySelector('[data-action="exit-to-menu"]');
   const scanOverlay = document.querySelector("[data-ar-scan]");
-  const scanTextEl = document.querySelector("[data-scan-text]");
   const introOverlay = document.querySelector("[data-ar-intro]");
   const introCloseBtn = document.querySelector('[data-action="close-intro"]');
   const poiPanel = document.querySelector("[data-ar-poi-panel]");
@@ -207,8 +206,10 @@ function initArPage() {
     },
   };
 
-  // Чтобы вводная панель показалась только один раз
+  // Флаг, чтобы вводная панель показалась только один раз
   let introShown = false;
+  // Флаг, чтобы знать, отслеживается ли сейчас маркер (targetFound / targetLost)
+  let markerVisible = false;
 
   /**
    * Показ панели с содержимым точки интереса.
@@ -224,44 +225,145 @@ function initArPage() {
   }
 
   /**
+   * Логика хит-теста: проверяем попадание по экрану вокруг POI.
+   * Эта функция не лезет в камеру — только работает с уже построенной 3D-сценой.
+   * @param {Element[]} poiHits - список .poi-hit (невидимых кругов)
+   * @param {Element|null} poiGroup - контейнер с POI
+   */
+  function setupPoiTouchHitTest(poiHits, poiGroup) {
+    const sceneEl = document.querySelector("a-scene");
+    if (!sceneEl || !poiHits.length) return;
+
+    // Берём THREE из глобала (A-Frame его поднимает)
+    const THREERef =
+      window.THREE || (window.AFRAME && window.AFRAME.THREE);
+    if (!THREERef) {
+      console.warn("THREE не найден, хит-тест по POI недоступен");
+      return;
+    }
+
+    /**
+     * Вычисляем экранные координаты всех POI (.poi-hit).
+     * @returns {{id:number,x:number,y:number}[]}
+     */
+    function getPoiScreenPositions() {
+      const camera = sceneEl.camera;
+      if (!camera) return [];
+      const w =
+        window.innerWidth || document.documentElement.clientWidth || 1;
+      const h =
+        window.innerHeight || document.documentElement.clientHeight || 1;
+
+      const results = [];
+
+      poiHits.forEach((hit) => {
+        const idStr = hit.dataset.poi;
+        const id = parseInt(idStr, 10);
+        if (!id || !poiContent[id]) return;
+
+        const worldPos = new THREERef.Vector3();
+        hit.object3D.getWorldPosition(worldPos);
+
+        // Проецируем мировую позицию в NDC (-1..1)
+        worldPos.project(camera);
+
+        // Переводим в пиксели экрана
+        const x = (worldPos.x * 0.5 + 0.5) * w;
+        const y = (-worldPos.y * 0.5 + 0.5) * h;
+
+        results.push({ id, x, y });
+      });
+
+      return results;
+    }
+
+    /**
+     * Обработка клика/тача по экрану: проверяем, попали ли мы
+     * в радиус вокруг одной из точек.
+     */
+    function handlePointer(evt) {
+      if (!poiGroup) return;
+
+      // POI должны быть видимы (т.е. пользователь уже закрыл вводную панель)
+      const visibleAttr = poiGroup.getAttribute("visible");
+      const groupVisible =
+        visibleAttr === true || visibleAttr === "true";
+      if (!groupVisible) return;
+
+      // Маркер должен быть отслеживаемым (targetFound уже был и не было targetLost)
+      if (!markerVisible) return;
+
+      const isTouch = evt.touches && evt.touches.length;
+      const clientX = isTouch ? evt.touches[0].clientX : evt.clientX;
+      const clientY = isTouch ? evt.touches[0].clientY : evt.clientY;
+      if (clientX == null || clientY == null) return;
+
+      const w =
+        window.innerWidth || document.documentElement.clientWidth || 1;
+      const h =
+        window.innerHeight || document.documentElement.clientHeight || 1;
+
+      // Радиус вокруг точки: 12% от меньшей стороны экрана
+      const radius = Math.min(w, h) * 0.12;
+      const radiusSq = radius * radius;
+
+      const poiScreens = getPoiScreenPositions();
+      let bestId = null;
+      let bestDistSq = Infinity;
+
+      for (const p of poiScreens) {
+        const dx = clientX - p.x;
+        const dy = clientY - p.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq <= radiusSq && distSq < bestDistSq) {
+          bestDistSq = distSq;
+          bestId = p.id;
+        }
+      }
+
+      if (bestId != null) {
+        showPoi(bestId);
+      }
+    }
+
+    // Слушаем клики мышью и тапы на всём окне
+    window.addEventListener("click", handlePointer);
+    window.addEventListener("touchstart", handlePointer, {
+      passive: true,
+    });
+  }
+
+  /**
    * Основная логика AR:
    * - targetFound → показываем вводную панель
    * - закрытие вводной → показываем POI
-   * - клики по POI → панели с текстом
+   * - хит-тест по экрану вокруг POI → панели с текстом
    */
   function setupArLogic() {
     const targetEntity = document.querySelector("#artwork-target");
     const poiGroup = document.querySelector("#poi-group");
-    // "Расширенные" зоны попадания по точкам
     const poiHits = Array.from(document.querySelectorAll(".poi-hit"));
 
-    // --- клики по POI ---
+    // Найдём иконки рядом с зонами, чтобы давать визуальный отклик при наведении
     poiHits.forEach((hit) => {
-      const idStr = hit.dataset.poi;
-      const id = parseInt(idStr, 10);
-      if (!id || !poiContent[id]) return;
-
-      // Ищем иконку этой точки (маленькое изображение внутри одной обёртки)
       const wrapper = hit.parentElement;
       const icon = wrapper
         ? wrapper.querySelector(".poi-icon")
         : null;
 
-      // Клик (тап/клик мышью через raycaster): показываем соответствующую панель
-      hit.addEventListener("click", () => {
-        showPoi(id);
-      });
+      if (!icon) return;
 
-      // Визуальный отклик по наведению (на десктопе/когда raycaster шлёт события)
-      if (icon) {
-        hit.addEventListener("mouseenter", () => {
-          icon.setAttribute("scale", "1.15 1.15 1.15");
-        });
-        hit.addEventListener("mouseleave", () => {
-          icon.setAttribute("scale", "1 1 1");
-        });
-      }
+      // Ховер от raycaster (на десктопе) — просто чуть увеличиваем иконку
+      hit.addEventListener("mouseenter", () => {
+        icon.setAttribute("scale", "1.15 1.15 1.15");
+      });
+      hit.addEventListener("mouseleave", () => {
+        icon.setAttribute("scale", "1 1 1");
+      });
     });
+
+    // Запускаем хит-тест по экрану (клик/тап в радиусе вокруг POI)
+    setupPoiTouchHitTest(poiHits, poiGroup);
 
     // --- закрытие вводной панели: открываем точки интереса ---
     if (introCloseBtn) {
@@ -281,6 +383,8 @@ function initArPage() {
     // --- реакция на распознавание маркера MindAR ---
     if (targetEntity) {
       targetEntity.addEventListener("targetFound", () => {
+        markerVisible = true;
+
         // Прячем экран "Сканируем"
         if (scanOverlay) {
           scanOverlay.style.display = "none";
@@ -293,76 +397,14 @@ function initArPage() {
         }
       });
 
-      // targetLost НЕ трогаем — по ТЗ панель не закрывать при пропаже метки
+      // targetLost: маркер перестали видеть, но панель по ТЗ не закрываем.
+      targetEntity.addEventListener("targetLost", () => {
+        markerVisible = false;
+      });
     }
   }
 
-  /**
-   * Мини-проверка камеры:
-   * - есть ли вообще поддержка mediaDevices;
-   * - есть ли видеоустройства;
-   * - не запрещена ли камера в Permissions API.
-   * getUserMedia здесь НЕ вызываем, чтобы не мешать MindAR управлять камерой.
-   */
-  async function checkCameraSupport() {
-    if (!scanTextEl) return;
-
-    // 1) Совсем старый/нестандартный браузер
-    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-      scanTextEl.textContent =
-        "Камера не поддерживается в этом браузере. Откройте сцену в Chrome, Safari или Яндекс.Браузере.";
-      return;
-    }
-
-    // 2) Проверяем наличие видеоустройств
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const hasVideoInput = devices.some(
-        (d) => d && d.kind === "videoinput"
-      );
-
-      if (!hasVideoInput) {
-        scanTextEl.textContent =
-          "Камера не найдена. Подключите камеру и обновите страницу.";
-        return;
-      }
-    } catch (e) {
-      console.warn("enumerateDevices error", e);
-      // Если не смогли проверить — продолжаем, MindAR сам попробует
-    }
-
-    // 3) Если есть Permissions API — проверяем, не запрещена ли камера
-    if (navigator.permissions && navigator.permissions.query) {
-      try {
-        const status = await navigator.permissions.query({ name: "camera" });
-
-        if (status.state === "denied") {
-          scanTextEl.textContent =
-            "Доступ к камере запрещён. Разрешите доступ в настройках браузера и перезапустите сцену.";
-          return;
-        }
-
-        // На всякий случай обновляем текст при изменении статуса
-        status.onchange = () => {
-          if (status.state === "denied") {
-            scanTextEl.textContent =
-              "Доступ к камере запрещён. Разрешите доступ в настройках браузера.";
-          } else if (status.state === "granted") {
-            scanTextEl.textContent =
-              "Наведите камеру на картину, чтобы начать.";
-          }
-        };
-      } catch (e) {
-        console.warn("permissions.query(camera) error", e);
-      }
-    }
-
-    // Если дошли сюда — с точки зрения браузера всё ок, MindAR запросит доступ сам
-    scanTextEl.textContent = "Наведите камеру на картину, чтобы начать.";
-  }
-
-  // Стартуем проверки и AR-логику
-  checkCameraSupport();
+  // НИКАКИХ проверок камеры: MindAR сам запросит доступ и запустит камеру
   setupArLogic();
 }
 
